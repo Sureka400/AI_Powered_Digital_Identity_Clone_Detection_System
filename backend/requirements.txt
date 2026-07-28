@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+numpy
+pandas
+scikit-learn
+joblib
+opencv-python
+deepface
+tensorflow
+rapidfuzz
+sentence-transformers
+python-dotenv
+reportlab
+pillow
+pydantic
+aiofiles

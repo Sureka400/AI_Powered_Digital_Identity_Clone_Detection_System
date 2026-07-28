@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Upload, Zap } from 'lucide-react'
-
+import api from "../api/api";
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history' | 'settings'
 
 interface ProfileData {
@@ -254,11 +254,33 @@ export default function NewInvestigation({ onNavigate }: NewInvestigationProps) 
 
   const canAnalyze = original.username && clone.username
 
-  const handleAnalyze = () => {
-    if (!canAnalyze) return
-    onNavigate('ai-room', { original, clone })
-  }
+  const handleAnalyze = async () => {
 
+  if (!canAnalyze) return;
+
+  try {
+
+    const response = await api.post("/analyze/", {
+      original: original,
+      clone: clone
+    });
+
+    console.log(response.data);
+
+    onNavigate(
+      "results",
+      response.data
+    );
+
+  } catch(error) {
+
+    console.error(
+      "API Error:",
+      error
+    );
+
+  }
+};
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
