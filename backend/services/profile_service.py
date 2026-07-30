@@ -34,7 +34,22 @@ class ProfileService:
 
         prediction = int(profile_model.predict(features)[0])
 
+        # Try to get probability scores for confidence
+        confidence = None
+        fake_probability = None
+        try:
+            if hasattr(profile_model, "predict_proba"):
+                proba = profile_model.predict_proba(features)[0]
+                # Assume class order is [0=Real, 1=Fake]; adjust if needed
+                if len(proba) >= 2:
+                    confidence = round(float(max(proba)) * 100, 2)
+                    fake_probability = round(float(proba[1]) * 100, 2)
+        except Exception:
+            pass
+
         return {
             "prediction": prediction,
-            "result": "Fake" if prediction == 1 else "Real"
+            "result": "Fake" if prediction == 1 else "Real",
+            "confidence": confidence,
+            "fake_probability": fake_probability
         }

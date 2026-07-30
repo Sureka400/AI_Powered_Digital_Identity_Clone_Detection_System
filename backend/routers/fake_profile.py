@@ -15,5 +15,7 @@ async def predict_profile(data: ProfileRequest):
 
     return ProfileResponse(
         prediction=result["prediction"],
-        result=result["result"]
+        result=result["result"],
+        confidence=result.get("confidence"),
+        fake_probability=result.get("fake_probability")
     )

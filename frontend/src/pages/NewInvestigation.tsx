@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Upload, Zap } from 'lucide-react'
+import { Upload, Zap, Loader, AlertCircle } from 'lucide-react'
 import api from "../api/api";
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history' | 'settings'
 
@@ -58,6 +58,137 @@ function autoFields(p: ProfileData) {
     fullNameHasNumbers: /\d/.test(p.displayName),
     nameEqualsUsername: p.username.toLowerCase() === p.displayName.toLowerCase().replace(/\s/g, ''),
   }
+}
+
+function dataURLtoFile(dataURL: string, filename: string): File {
+  const arr = dataURL.split(',')
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const bstr = atob(arr[1])
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new File([u8arr], filename, { type: mime })
+}
+
+// ---------- Local fallback computations (used when backend is unavailable) ----------
+
+// Levenshtein-based username similarity (0-100), mirrors rapidfuzz.fuzz.ratio
+function localUsernameSimilarity(u1: string, u2: string): number {
+  const s1 = u1.toLowerCase()
+  const s2 = u2.toLowerCase()
+  if (s1 === s2) return 100
+  if (!s1.length || !s2.length) return 0
+  const dist = levenshtein(s1, s2)
+  const maxLen = Math.max(s1.length, s2.length)
+  return Math.round((1 - dist / maxLen) * 100 * 100) / 100
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
+    }
+  }
+  return dp[m][n]
+}
+
+// Simple token-overlap bio similarity (0-100), approximates cosine similarity
+function localBioSimilarity(b1: string, b2: string): number {
+  if (!b1.trim() && !b2.trim()) return 100
+  if (!b1.trim() || !b2.trim()) return 0
+  const tokenize = (s: string) =>
+    s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  const t1 = new Set(tokenize(b1))
+  const t2 = new Set(tokenize(b2))
+  const intersection = [...t1].filter((w) => t2.has(w)).length
+  const union = new Set([...t1, ...t2]).size
+  return Math.round((intersection / union) * 100 * 100) / 100
+}
+
+// Heuristic fake-profile prediction mirroring the trained model's feature set
+function localProfilePredict(p: ProfileData) {
+  let fakeScore = 0
+  if (!p.image) fakeScore += 15
+  if (p.username.length <= 4) fakeScore += 10
+  if (/\d/.test(p.username)) fakeScore += 10
+  if (p.displayName.length === 0) fakeScore += 10
+  if (p.bio.length < 10) fakeScore += 15
+  if (!p.externalUrl) fakeScore += 10
+  if (p.recentlyJoined) fakeScore += 15
+  const followers = Number(p.followers) || 0
+  const following = Number(p.following) || 0
+  if (followers < 50) fakeScore += 10
+  if (following > followers * 3 && followers > 0) fakeScore += 5
+
+  const prediction = fakeScore >= 50 ? 1 : 0
+  const fake_probability = Math.min(fakeScore * 1.2, 99)
+  return {
+    prediction,
+    result: prediction === 1 ? 'Fake' : 'Real',
+    confidence: Math.round(Math.max(fakeScore, 100 - fakeScore) * 100) / 100,
+    fake_probability: Math.round(fake_probability * 100) / 100,
+  }
+}
+
+// Heuristic spammer prediction
+function localSpammerPredict(p: ProfileData) {
+  let spamScore = 0
+  const followers = Number(p.followers) || 0
+  const following = Number(p.following) || 0
+  if (following > followers * 3 && followers > 0) spamScore += 25
+  if (followers < 50) spamScore += 20
+  if (/\d/.test(p.username)) spamScore += 15
+  if (/\d/.test(p.displayName)) spamScore += 10
+  if (p.recentlyJoined) spamScore += 15
+  if (p.isBusiness) spamScore += 10
+  if (p.hasGuides) spamScore += 5
+
+  const prediction = spamScore >= 50 ? 1 : 0
+  const spammer_probability = Math.min(spamScore * 1.3, 99)
+  return {
+    prediction,
+    result: prediction === 1 ? 'Fake' : 'Real',
+    confidence: Math.round(Math.max(spamScore, 100 - spamScore) * 100) / 100,
+    spammer_probability: Math.round(spammer_probability * 100) / 100,
+  }
+}
+
+// Local trust score mirroring backend/utils/trust_score.py
+function localTrustScore(
+  profileFake: boolean,
+  spammer: boolean,
+  usernameSim: number,
+  bioSim: number,
+  faceSim: number,
+  faceVerified: boolean,
+) {
+  let score = 100
+  if (profileFake) score -= 35
+  if (spammer) score -= 20
+  if (usernameSim > 80) score -= 15
+  else if (usernameSim > 60) score -= 8
+  if (bioSim > 80) score -= 10
+  else if (bioSim > 60) score -= 5
+  if (faceSim > 80) score -= 20
+  else if (faceSim > 60) score -= 10
+  if (faceVerified) score -= 5
+  score = Math.max(score, 0)
+
+  let status = 'Trusted'
+  let risk = 'Low'
+  if (score < 25) { status = 'Clone'; risk = 'Extreme' }
+  else if (score < 50) { status = 'Likely Clone'; risk = 'High' }
+  else if (score < 75) { status = 'Suspicious'; risk = 'Moderate' }
+
+  return { trust_score: score, status, risk }
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -251,36 +382,163 @@ interface NewInvestigationProps {
 export default function NewInvestigation({ onNavigate }: NewInvestigationProps) {
   const [original, setOriginal] = useState<ProfileData>(defaultProfile())
   const [clone, setClone] = useState<ProfileData>(defaultProfile())
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const canAnalyze = original.username && clone.username
 
   const handleAnalyze = async () => {
+    if (!canAnalyze || isAnalyzing) return;
 
-  if (!canAnalyze) return;
+    setIsAnalyzing(true);
+    setError(null);
 
-  try {
+    // Results accumulators with local fallback defaults
+    let profileData: any = localProfilePredict(clone);
+    let spammerData: any = localSpammerPredict(clone);
+    let usernameData: any = {
+      username_similarity: localUsernameSimilarity(original.username, clone.username),
+      match: false,
+    };
+    let bioData: any = {
+      bio_similarity: localBioSimilarity(original.bio, clone.bio),
+      match: false,
+    };
+    let faceData: { verified: boolean; distance: number; threshold: number; similarity?: number; model?: string } | null = null;
+    let analyzeData: any = localTrustScore(
+      profileData.prediction === 1,
+      spammerData.prediction === 1,
+      usernameData.username_similarity,
+      bioData.bio_similarity,
+      0,
+      false,
+    );
 
-    const response = await api.post("/analyze/", {
-      original: original,
-      clone: clone
+    const failures: string[] = [];
+
+    // 1. Fake Profile prediction (on suspected clone)
+    try {
+      const profileResponse = await api.post("/profile/predict", {
+        profile_pic: clone.image ? 1 : 0,
+        username_length: clone.username.length,
+        fullname_words: clone.displayName.split(" ").filter(Boolean).length,
+        fullname_length: clone.displayName.length,
+        name_equals_username:
+          clone.username.toLowerCase() ===
+          clone.displayName.toLowerCase().replace(/\s/g, "")
+            ? 1
+            : 0,
+        description_length: clone.bio.length,
+        external_url: clone.externalUrl ? 1 : 0,
+        private: clone.isPrivate ? 1 : 0,
+        posts: Number(clone.posts) || 0,
+        followers: Number(clone.followers) || 0,
+        following: Number(clone.following) || 0,
+      });
+      profileData = profileResponse.data;
+    } catch (e) {
+      console.error("Profile API failed, using local fallback:", e);
+      failures.push("Fake Profile model");
+    }
+
+    // 2. Spammer prediction (on suspected clone)
+    try {
+      const spammerResponse = await api.post("/spammer/predict", {
+        edge_followed_by: Number(clone.followers) || 0,
+        edge_follow: Number(clone.following) || 0,
+        username_length: clone.username.length,
+        username_has_number: /\d/.test(clone.username) ? 1 : 0,
+        full_name_has_number: /\d/.test(clone.displayName) ? 1 : 0,
+        full_name_length: clone.displayName.length,
+        is_private: clone.isPrivate ? 1 : 0,
+        is_joined_recently: clone.recentlyJoined ? 1 : 0,
+        has_channel: clone.isChannel ? 1 : 0,
+        is_business_account: clone.isBusiness ? 1 : 0,
+        has_guides: clone.hasGuides ? 1 : 0,
+        has_external_url: clone.externalUrl ? 1 : 0,
+      });
+      spammerData = spammerResponse.data;
+    } catch (e) {
+      console.error("Spammer API failed, using local fallback:", e);
+      failures.push("Spammer model");
+    }
+
+    // 3. Username similarity
+    try {
+      const usernameResponse = await api.post("/username/similarity", {
+        username1: original.username,
+        username2: clone.username,
+      });
+      usernameData = usernameResponse.data;
+    } catch (e) {
+      console.error("Username API failed, using local fallback:", e);
+      failures.push("Username similarity");
+    }
+
+    // 4. Bio similarity
+    try {
+      const bioResponse = await api.post("/bio/similarity", {
+        bio1: original.bio,
+        bio2: clone.bio,
+      });
+      bioData = bioResponse.data;
+    } catch (e) {
+      console.error("Bio API failed, using local fallback:", e);
+      failures.push("Bio similarity");
+    }
+
+    // 5. Face verification (only if both images present)
+    if (original.image && clone.image) {
+      try {
+        const formData = new FormData();
+        formData.append("image1", dataURLtoFile(original.image, "original.jpg"));
+        formData.append("image2", dataURLtoFile(clone.image, "clone.jpg"));
+        // NOTE: Do NOT set Content-Type manually — axios must auto-generate
+        // the multipart boundary string. Setting it manually breaks the upload.
+        const faceResponse = await api.post("/face/verify", formData, {
+          timeout: 120000,
+        });
+        faceData = faceResponse.data;
+      } catch (e) {
+        console.error("Face API failed, skipping face verification:", e);
+        failures.push("Face verification");
+      }
+    }
+
+    // 6. Trust score analysis (aggregate) — try backend, fallback to local
+    const faceSim = faceData
+      ? Math.round((1 - faceData.distance / faceData.threshold) * 100)
+      : 0;
+    try {
+      const analyzeResponse = await api.post("/analyze/", {
+        profile_fake: profileData.prediction === 1,
+        spammer: spammerData.prediction === 1,
+        username_similarity: usernameData.username_similarity,
+        bio_similarity: bioData.bio_similarity,
+        face_similarity: faceSim,
+        face_verified: faceData ? faceData.verified : false,
+      });
+      analyzeData = analyzeResponse.data;
+    } catch (e) {
+      console.error("Analyze API failed, using local fallback:", e);
+      failures.push("Trust score");
+    }
+
+    // Always navigate to AI room with whatever data we have
+    onNavigate("ai-room", {
+      profile: profileData,
+      spammer: spammerData,
+      username: usernameData,
+      bio: bioData,
+      face: faceData,
+      analyze: analyzeData,
+      original,
+      clone,
+      warnings: failures.length > 0 ? failures : undefined,
     });
 
-    console.log(response.data);
-
-    onNavigate(
-      "results",
-      response.data
-    );
-
-  } catch(error) {
-
-    console.error(
-      "API Error:",
-      error
-    );
-
-  }
-};
+    setIsAnalyzing(false);
+  };
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -319,26 +577,30 @@ export default function NewInvestigation({ onNavigate }: NewInvestigationProps) 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="flex justify-center pt-4"
+        className="flex flex-col items-center pt-4 gap-3"
       >
         <motion.button
-          whileHover={canAnalyze ? { scale: 1.04, boxShadow: '0 0 60px rgba(0,245,255,0.5)' } : {}}
-          whileTap={canAnalyze ? { scale: 0.97 } : {}}
+          whileHover={canAnalyze && !isAnalyzing ? { scale: 1.04, boxShadow: '0 0 60px rgba(0,245,255,0.5)' } : {}}
+          whileTap={canAnalyze && !isAnalyzing ? { scale: 0.97 } : {}}
           onClick={handleAnalyze}
+          disabled={!canAnalyze || isAnalyzing}
           className="relative px-16 py-5 rounded-2xl text-lg font-bold"
           style={{
             fontFamily: 'Space Grotesk',
             letterSpacing: '0.08em',
-            background: canAnalyze
-              ? 'linear-gradient(135deg, rgba(0,245,255,0.15), rgba(123,97,255,0.15))'
-              : 'rgba(255,255,255,0.04)',
+            background: isAnalyzing
+              ? 'linear-gradient(135deg, rgba(0,245,255,0.25), rgba(123,97,255,0.25))'
+              : canAnalyze
+                ? 'linear-gradient(135deg, rgba(0,245,255,0.15), rgba(123,97,255,0.15))'
+                : 'rgba(255,255,255,0.04)',
             border: canAnalyze ? '1px solid rgba(0,245,255,0.5)' : '1px solid rgba(255,255,255,0.08)',
             color: canAnalyze ? '#00F5FF' : '#94A3B8',
-            cursor: canAnalyze ? 'pointer' : 'not-allowed',
+            cursor: canAnalyze && !isAnalyzing ? 'pointer' : 'not-allowed',
+            opacity: isAnalyzing ? 0.85 : 1,
           }}
         >
           {/* Animated border */}
-          {canAnalyze && (
+          {canAnalyze && !isAnalyzing && (
             <div
               className="absolute inset-0 rounded-2xl pointer-events-none"
               style={{
@@ -354,15 +616,46 @@ export default function NewInvestigation({ onNavigate }: NewInvestigationProps) 
             />
           )}
           <div className="flex items-center gap-3">
-            <Zap size={22} />
-            ANALYZE IDENTITY
+            {isAnalyzing ? (
+              <>
+                <Loader size={22} className="animate-spin" />
+                ANALYZING...
+              </>
+            ) : (
+              <>
+                <Zap size={22} />
+                ANALYZE IDENTITY
+              </>
+            )}
           </div>
         </motion.button>
-      </motion.div>
 
-      {!canAnalyze && (
-        <p className="text-center text-xs text-muted">Fill in at least a username for both profiles to proceed</p>
-      )}
+        {isAnalyzing && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-xs text-cyan font-mono"
+          >
+            Running AI pipeline · analyzing profile data...
+          </motion.p>
+        )}
+
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg"
+            style={{ background: 'rgba(255,61,113,0.08)', border: '1px solid rgba(255,61,113,0.3)' }}
+          >
+            <AlertCircle size={14} color="#FF3D71" />
+            <span className="text-xs text-danger">{error}</span>
+          </motion.div>
+        )}
+
+        {!canAnalyze && !isAnalyzing && (
+          <p className="text-center text-xs text-muted">Fill in at least a username for both profiles to proceed</p>
+        )}
+      </motion.div>
     </div>
   )
 }

@@ -1,44 +1,38 @@
 import { motion } from 'framer-motion'
 import { Check, X, AlertTriangle } from 'lucide-react'
 
-const original = {
-  username: 'shadowtech99',
-  displayName: 'Shadow Tech',
-  bio: 'Tech enthusiast · Building the future · DMs open for collaborations',
-  followers: '48,291',
-  following: '312',
-  posts: '847',
-  isPrivate: false,
-  isBusiness: false,
-  externalUrl: 'https://shadowtech.io',
+interface ProfileInfo {
+  username: string
+  displayName: string
+  bio: string
+  followers: string
+  following: string
+  posts: string
+  isPrivate: boolean
+  isBusiness: boolean
+  isChannel: boolean
+  hasGuides: boolean
+  externalUrl: string
+  recentlyJoined: boolean
+  image: string | null
 }
 
-const clone = {
-  username: '5hadowtech99',
-  displayName: 'Shadow Tec_h',
-  bio: 'Tech enthusiast · Building the future · DMs open for collaborations 🔥',
-  followers: '12',
-  following: '1,429',
-  posts: '3',
-  isPrivate: false,
-  isBusiness: false,
-  externalUrl: '',
+interface InvestigationData {
+  profile?: { prediction: number; result: string; confidence?: number | null; fake_probability?: number | null }
+  spammer?: { prediction: number; result: string; confidence?: number | null; spammer_probability?: number | null }
+  username?: { username_similarity: number; match: boolean }
+  bio?: { bio_similarity: number; match: boolean }
+  face?: { verified: boolean; distance: number; threshold: number } | null
+  analyze?: { trust_score: number; status: string; risk: string }
+  original?: ProfileInfo
+  clone?: ProfileInfo
+}
+
+interface ProfileDifferenceProps {
+  data?: unknown
 }
 
 type FieldStatus = 'match' | 'changed' | 'suspicious'
-
-const fields: Array<{ key: keyof typeof original; label: string; status: FieldStatus }> = [
-  { key: 'username', label: 'Username', status: 'suspicious' },
-  { key: 'displayName', label: 'Display Name', status: 'suspicious' },
-  { key: 'bio', label: 'Biography', status: 'changed' },
-  { key: 'followers', label: 'Followers', status: 'changed' },
-  { key: 'following', label: 'Following', status: 'changed' },
-  { key: 'posts', label: 'Posts', status: 'changed' },
-  { key: 'isPrivate', label: 'Private', status: 'match' },
-  { key: 'isBusiness', label: 'Business', status: 'match' },
-  { key: 'externalUrl', label: 'External URL', status: 'changed' },
-]
-
 
 function StatusIcon({ status }: { status: FieldStatus }) {
   if (status === 'match') return <Check size={14} color="#00FFA3" />
@@ -64,7 +58,7 @@ function StatusLabel({ status }: { status: FieldStatus }) {
 function highlight(orig: string, cln: string, status: FieldStatus) {
   if (status === 'match') return { orig: <span style={{ color: '#00FFA3' }}>{String(orig)}</span>, cln: <span style={{ color: '#00FFA3' }}>{String(cln)}</span> }
   if (status === 'changed') return {
-    orig: <span style={{ color: '#F8FAFC' }}>{String(orig)}</span>,
+    orig: <span style={{ color: '#F8FAFC' }}>{String(orig) || '—'}</span>,
     cln: <span style={{ color: '#FF3D71' }}>{String(cln) || '—'}</span>,
   }
   // suspicious — highlight diff chars
@@ -83,7 +77,59 @@ function highlight(orig: string, cln: string, status: FieldStatus) {
   return { orig: <>{origSpans}</>, cln: <>{clnSpans}</> }
 }
 
-export default function ProfileDifference() {
+function determineStatus(origVal: string, clnVal: string, isText: boolean): FieldStatus {
+  if (origVal === clnVal) return 'match'
+  if (isText && origVal && clnVal) {
+    // Check if it's a minor variation (suspicious) vs completely different (changed)
+    const similarity = origVal.toLowerCase() === clnVal.toLowerCase() ? 100 : 0
+    if (similarity > 80) return 'suspicious'
+    // Check character-level similarity
+    const maxLen = Math.max(origVal.length, clnVal.length)
+    let matches = 0
+    for (let i = 0; i < Math.min(origVal.length, clnVal.length); i++) {
+      if (origVal[i].toLowerCase() === clnVal[i].toLowerCase()) matches++
+    }
+    const charSim = (matches / maxLen) * 100
+    if (charSim > 60) return 'suspicious'
+  }
+  return 'changed'
+}
+
+export default function ProfileDifference({ data }: ProfileDifferenceProps) {
+  const d: InvestigationData = (data as InvestigationData) || {}
+  const orig = d.original
+  const cln = d.clone
+
+  // If no data available, show a message
+  if (!orig || !cln) {
+    return (
+      <div className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-1 h-6 rounded-full" style={{ background: 'linear-gradient(180deg, #00F5FF, #7B61FF)' }} />
+            <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>Profile Difference Analysis</h1>
+          </div>
+          <p className="text-sm text-muted ml-4">Field-by-field comparison highlighting every discrepancy</p>
+        </motion.div>
+        <div className="glass rounded-2xl p-12 text-center" style={{ border: '1px solid rgba(0,245,255,0.08)' }}>
+          <p className="text-muted">No profile data available. Please run an investigation first.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const fields: Array<{ key: keyof ProfileInfo; label: string; status: FieldStatus; isText: boolean }> = [
+    { key: 'username', label: 'Username', status: determineStatus(orig.username, cln.username, true), isText: true },
+    { key: 'displayName', label: 'Display Name', status: determineStatus(orig.displayName, cln.displayName, true), isText: true },
+    { key: 'bio', label: 'Biography', status: determineStatus(orig.bio, cln.bio, true), isText: true },
+    { key: 'followers', label: 'Followers', status: determineStatus(orig.followers, cln.followers, false), isText: false },
+    { key: 'following', label: 'Following', status: determineStatus(orig.following, cln.following, false), isText: false },
+    { key: 'posts', label: 'Posts', status: determineStatus(orig.posts, cln.posts, false), isText: false },
+    { key: 'isPrivate', label: 'Private', status: determineStatus(String(orig.isPrivate), String(cln.isPrivate), false), isText: false },
+    { key: 'isBusiness', label: 'Business', status: determineStatus(String(orig.isBusiness), String(cln.isBusiness), false), isText: false },
+    { key: 'externalUrl', label: 'External URL', status: determineStatus(orig.externalUrl, cln.externalUrl, false), isText: false },
+  ]
+
   const matched = fields.filter((f) => f.status === 'match').length
   const changed = fields.filter((f) => f.status === 'changed').length
   const suspicious = fields.filter((f) => f.status === 'suspicious').length
@@ -134,11 +180,9 @@ export default function ProfileDifference() {
         </div>
 
         {fields.map((field, i) => {
-          const { orig, cln } = highlight(
-            typeof original[field.key] === 'boolean' ? (original[field.key] ? 'Yes' : 'No') : (original[field.key] as string),
-            typeof clone[field.key] === 'boolean' ? (clone[field.key] ? 'Yes' : 'No') : (clone[field.key] as string),
-            field.status,
-          )
+          const origVal = typeof orig[field.key] === 'boolean' ? (orig[field.key] as boolean ? 'Yes' : 'No') : (orig[field.key] as string) || '—'
+          const clnVal = typeof cln[field.key] === 'boolean' ? (cln[field.key] as boolean ? 'Yes' : 'No') : (cln[field.key] as string) || '—'
+          const { orig: origRender, cln: clnRender } = highlight(origVal, clnVal, field.status)
           return (
             <motion.div
               key={field.key}
@@ -149,8 +193,8 @@ export default function ProfileDifference() {
               style={{ borderColor: 'rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
             >
               <div className="text-sm text-muted">{field.label}</div>
-              <div className="text-sm font-mono break-all">{orig}</div>
-              <div className="text-sm font-mono break-all">{cln}</div>
+              <div className="text-sm font-mono break-all">{origRender}</div>
+              <div className="text-sm font-mono break-all">{clnRender}</div>
               <div className="flex items-center gap-2">
                 <StatusIcon status={field.status} />
                 <StatusLabel status={field.status} />

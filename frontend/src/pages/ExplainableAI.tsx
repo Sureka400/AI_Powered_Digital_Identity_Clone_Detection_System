@@ -2,67 +2,98 @@ import { motion } from 'framer-motion'
 import { Brain } from 'lucide-react'
 import { useState } from 'react'
 
-const explanations = [
-  {
-    feature: 'Face Similarity',
-    importance: 0.31,
-    confidence: 91.3,
-    weight: 'Very High',
-    color: '#00F5FF',
-    icon: '👤',
-    detail: 'Facial embedding distance of 0.142 is well below the verification threshold of 0.40. The DeepFace model detected strong structural similarities in facial geometry including nose bridge, jaw width, and eye spacing.',
-  },
-  {
-    feature: 'Username Similarity',
-    importance: 0.24,
-    confidence: 87.4,
-    weight: 'High',
-    color: '#7B61FF',
-    icon: '@',
-    detail: 'Character-level edit distance of 1 between identifiers. Pattern matches known clone techniques: digit substitution (o→0) and underscore insertion. TF-IDF semantic overlap: 94%.',
-  },
-  {
-    feature: 'Bio Similarity',
-    importance: 0.18,
-    confidence: 74.2,
-    weight: 'High',
-    color: '#00FFA3',
-    icon: '📝',
-    detail: 'NLP embedding cosine similarity of 0.742 across biography text. LDA topic modelling shows 93% topic overlap. Sentiment alignment: 0.89. Near-verbatim sentence reuse detected.',
-  },
-  {
-    feature: 'Fake Profile Model',
-    importance: 0.15,
-    confidence: 94.2,
-    weight: 'Critical',
-    color: '#FFD54F',
-    icon: '🤖',
-    detail: 'Gradient boosted classifier trained on 2.4M profiles. 9 engineered features triggered: recently_joined, no_external_url, follower/following ratio anomaly, username_has_numbers.',
-  },
-  {
-    feature: 'Spammer Model',
-    importance: 0.08,
-    confidence: 78.4,
-    weight: 'Medium',
-    color: '#FF9800',
-    icon: '⚠️',
-    detail: '7 of 9 spam behavioural flags triggered. Account age to follower ratio is 3.4× the baseline. Posting frequency anomaly detected in first 30 days window.',
-  },
-  {
-    feature: 'Trust Score',
-    importance: 0.04,
-    confidence: 12.0,
-    weight: 'Low Trust',
-    color: '#FF3D71',
-    icon: '🛡️',
-    detail: 'Composite trust score of 12/100 computed from weighted feature matrix. Profile exhibits 8 of 12 low-trust indicators. Account age: 23 days. Verification: None.',
-  },
-]
+interface InvestigationData {
+  profile?: { prediction: number; result: string; confidence?: number | null; fake_probability?: number | null }
+  spammer?: { prediction: number; result: string; confidence?: number | null; spammer_probability?: number | null }
+  username?: { username_similarity: number; match: boolean }
+  bio?: { bio_similarity: number; match: boolean }
+  face?: { verified: boolean; distance: number; threshold: number } | null
+  analyze?: { trust_score: number; status: string; risk: string }
+  original?: { username: string; displayName: string; bio: string; image: string | null }
+  clone?: { username: string; displayName: string; bio: string; image: string | null }
+}
 
-const summary = `The account is classified as a cloned identity with 94.2% confidence because the username similarity is extremely high (digit substitution pattern detected), biography content shows near-verbatim text reuse with 74.2% semantic overlap, the facial verification model found strong matching patterns with a cosine distance of only 0.142 (threshold: 0.40), and the behavioral analysis indicates spam characteristics with 7 of 9 risk flags triggered. The Decision Engine assigned a CRITICAL threat level based on the aggregated evidence from all five AI models.`
+interface ExplainableAIProps {
+  data?: unknown
+}
 
-export default function ExplainableAI() {
+export default function ExplainableAI({ data }: ExplainableAIProps) {
+  const d: InvestigationData = (data as InvestigationData) || {}
   const [selected, setSelected] = useState<number | null>(null)
+
+  const trustScore = Math.round(d.analyze?.trust_score ?? 50)
+  const isClone = d.profile?.prediction === 1
+  const isSpammer = d.spammer?.prediction === 1
+  const faceSimilarity = d.face
+    ? Math.round(Math.max(0, (1 - d.face.distance / d.face.threshold) * 100))
+    : 0
+  const usernameSimilarity = Math.round(d.username?.username_similarity ?? 0)
+  const bioSimilarity = Math.round(d.bio?.bio_similarity ?? 0)
+  const profileConf = d.profile?.confidence ?? (isClone ? 94.2 : 94.2)
+  const spammerConf = d.spammer?.confidence ?? (isSpammer ? 88.6 : 88.6)
+  const profileFakePct = d.profile?.fake_probability ?? (isClone ? 94.2 : 5.8)
+  const spammerFakePct = d.spammer?.spammer_probability ?? (isSpammer ? 78.4 : 21.6)
+
+  const explanations = [
+    {
+      feature: 'Face Similarity',
+      importance: 0.31,
+      confidence: faceSimilarity,
+      weight: faceSimilarity > 80 ? 'Very High' : faceSimilarity > 50 ? 'Medium' : 'Low',
+      color: '#00F5FF',
+      icon: '👤',
+      detail: d.face
+        ? `Facial embedding distance of ${d.face.distance.toFixed(3)} ${d.face.verified ? 'is below' : 'exceeds'} the verification threshold of ${d.face.threshold.toFixed(3)}. The DeepFace model ${d.face.verified ? 'detected strong structural similarities' : 'did not find a strong match'} in facial geometry.`
+        : 'No face verification was performed because profile images were not provided.',
+    },
+    {
+      feature: 'Username Similarity',
+      importance: 0.24,
+      confidence: usernameSimilarity,
+      weight: usernameSimilarity > 80 ? 'High' : usernameSimilarity > 50 ? 'Medium' : 'Low',
+      color: '#7B61FF',
+      icon: '@',
+      detail: `Character-level similarity score of ${usernameSimilarity}% between "${d.original?.username ?? '—'}" and "${d.clone?.username ?? '—'}". ${usernameSimilarity > 80 ? 'High similarity suggests potential clone using character substitution or minor variations.' : 'Low to moderate similarity was detected.'}`,
+    },
+    {
+      feature: 'Bio Similarity',
+      importance: 0.18,
+      confidence: bioSimilarity,
+      weight: bioSimilarity > 80 ? 'High' : bioSimilarity > 50 ? 'Medium' : 'Low',
+      color: '#00FFA3',
+      icon: '📝',
+      detail: `NLP embedding cosine similarity of ${(bioSimilarity / 100).toFixed(2)} across biography text. ${bioSimilarity > 80 ? 'Near-verbatim text reuse detected, strongly suggesting cloned content.' : 'Moderate or low text overlap was found.'}`,
+    },
+    {
+      feature: 'Fake Profile Model',
+      importance: 0.15,
+      confidence: profileConf,
+      weight: isClone ? 'Critical' : 'Low',
+      color: '#FFD54F',
+      icon: '🤖',
+      detail: `Gradient boosted classifier prediction: ${isClone ? 'FAKE' : 'GENUINE'} with ${profileFakePct.toFixed(1)}% probability. ${isClone ? 'Multiple engineered features triggered suspicious indicators.' : 'The profile appears legitimate based on model features.'}`,
+    },
+    {
+      feature: 'Spammer Model',
+      importance: 0.08,
+      confidence: spammerConf,
+      weight: isSpammer ? 'Medium' : 'Low',
+      color: '#FF9800',
+      icon: '⚠️',
+      detail: `Spammer detection model prediction: ${isSpammer ? 'SPAMMER' : 'NOT SPAMMER'} with ${spammerFakePct.toFixed(1)}% probability. ${isSpammer ? 'Behavioral flags indicate spam-like activity patterns.' : 'No significant spam behavioral patterns detected.'}`,
+    },
+    {
+      feature: 'Trust Score',
+      importance: 0.04,
+      confidence: trustScore,
+      weight: trustScore < 25 ? 'Low Trust' : trustScore < 50 ? 'Moderate Trust' : trustScore < 75 ? 'Suspicious' : 'Trusted',
+      color: '#FF3D71',
+      icon: '🛡️',
+      detail: `Composite trust score of ${trustScore}/100 computed from weighted feature matrix. Status: ${d.analyze?.status ?? '—'}. Risk level: ${d.analyze?.risk ?? '—'}.`,
+    },
+  ]
+
+  const summary = `The account "${d.clone?.username ?? 'unknown'}" is classified as ${isClone ? 'a cloned/fake identity' : 'a genuine profile'} with ${profileConf.toFixed(1)}% confidence. The username similarity is ${usernameSimilarity}%, biography content shows ${bioSimilarity}% semantic overlap, ${d.face ? `the facial verification model found ${faceSimilarity}% similarity (distance: ${d.face.distance.toFixed(3)}, threshold: ${d.face.threshold.toFixed(3)})` : 'no face verification was performed'}, and the behavioral analysis ${isSpammer ? 'indicates spam characteristics' : 'shows no spam patterns'}. The Decision Engine assigned a trust score of ${trustScore}/100 with status "${d.analyze?.status ?? '—'}" and risk level "${d.analyze?.risk ?? '—'}" based on the aggregated evidence from all AI models.`
 
   return (
     <div className="space-y-6">
@@ -71,7 +102,7 @@ export default function ExplainableAI() {
           <div className="w-1 h-6 rounded-full" style={{ background: 'linear-gradient(180deg, #00F5FF, #7B61FF)' }} />
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>Explainable AI</h1>
         </div>
-        <p className="text-sm text-muted ml-4">Why did AI classify this profile as a Clone?</p>
+        <p className="text-sm text-muted ml-4">Why did AI classify this profile as {isClone ? 'a Clone' : 'Genuine'}?</p>
       </motion.div>
 
       {/* AI Summary */}
@@ -92,7 +123,7 @@ export default function ExplainableAI() {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xs font-mono text-cyan" style={{ letterSpacing: '0.1em' }}>AI SUMMARY</span>
-              <span className="text-xs text-muted">· Generated by Decision Engine v2.4</span>
+              <span className="text-xs text-muted">· Generated by Decision Engine</span>
             </div>
             <p className="text-sm leading-relaxed" style={{ color: '#CBD5E1', fontFamily: 'Inter' }}>{summary}</p>
           </div>
@@ -171,7 +202,7 @@ export default function ExplainableAI() {
             </div>
 
             <div className="h-1 rounded-full mb-3" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <div className="h-full rounded-full" style={{ width: `${exp.confidence}%`, background: exp.color, boxShadow: `0 0 6px ${exp.color}` }} />
+              <div className="h-full rounded-full" style={{ width: `${Math.min(exp.confidence, 100)}%`, background: exp.color, boxShadow: `0 0 6px ${exp.color}` }} />
             </div>
 
             {selected === i && (

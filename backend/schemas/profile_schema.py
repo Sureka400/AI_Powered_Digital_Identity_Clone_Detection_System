@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class ProfileRequest(BaseModel):
@@ -18,3 +19,5 @@ class ProfileRequest(BaseModel):
 class ProfileResponse(BaseModel):
     prediction: int
     result: str
+    confidence: Optional[float] = None
+    fake_probability: Optional[float] = None

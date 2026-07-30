@@ -1,53 +1,20 @@
 import { motion } from 'framer-motion'
-import { AlertTriangle, Shield, Users, Eye, Lock, Ban, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Shield, Users, Eye, Lock, Ban, ChevronRight, ShieldCheck } from 'lucide-react'
 
-const recommendations = [
-  {
-    title: 'Report Account',
-    desc: 'Immediately report the cloned account to the platform using the official reporting mechanism. Include the evidence ID for faster processing.',
-    priority: 'Critical',
-    risk: 'Extreme',
-    color: '#FF3D71',
-    icon: AlertTriangle,
-    action: 'Report Now',
-  },
-  {
-    title: 'Enable Two-Factor Authentication',
-    desc: 'Enable 2FA on the original account to prevent further unauthorized access attempts. Use hardware keys or authenticator apps.',
-    priority: 'High',
-    risk: 'High',
-    color: '#FF9800',
-    icon: Lock,
-    action: 'Enable 2FA',
-  },
-  {
-    title: 'Inform Followers',
-    desc: 'Publish a notice on the original profile alerting followers that a cloned account exists. Include distinguishing characteristics.',
-    priority: 'High',
-    risk: 'High',
-    color: '#FF9800',
-    icon: Users,
-    action: 'Draft Alert',
-  },
-  {
-    title: 'Monitor Activity',
-    desc: 'Set up automated monitoring for further clone attempts. Track mentions, tags, and impersonation patterns over the next 30 days.',
-    priority: 'Medium',
-    risk: 'Medium',
-    color: '#FFD54F',
-    icon: Eye,
-    action: 'Set Monitor',
-  },
-  {
-    title: 'Block Account',
-    desc: 'Block the cloned account immediately to limit its ability to interact with your followers and associate with your brand.',
-    priority: 'Medium',
-    risk: 'Low',
-    color: '#00FFA3',
-    icon: Ban,
-    action: 'Block Account',
-  },
-]
+interface InvestigationData {
+  profile?: { prediction: number; result: string; confidence?: number | null; fake_probability?: number | null }
+  spammer?: { prediction: number; result: string; confidence?: number | null; spammer_probability?: number | null }
+  username?: { username_similarity: number; match: boolean }
+  bio?: { bio_similarity: number; match: boolean }
+  face?: { verified: boolean; distance: number; threshold: number } | null
+  analyze?: { trust_score: number; status: string; risk: string }
+  original?: { username: string; displayName: string; bio: string; image: string | null }
+  clone?: { username: string; displayName: string; bio: string; image: string | null }
+}
+
+interface AIRecommendationProps {
+  data?: unknown
+}
 
 const priorityBadge = (priority: string) => {
   if (priority === 'Critical') return 'badge-critical'
@@ -56,7 +23,94 @@ const priorityBadge = (priority: string) => {
   return 'badge-low'
 }
 
-export default function AIRecommendation() {
+export default function AIRecommendation({ data }: AIRecommendationProps) {
+  const d: InvestigationData = (data as InvestigationData) || {}
+  const trustScore = Math.round(d.analyze?.trust_score ?? 50)
+  const isClone = d.profile?.prediction === 1
+  const isSpammer = d.spammer?.prediction === 1
+  const isCritical = trustScore < 35
+
+  // Build recommendations dynamically based on analysis results
+  const recommendations: Array<{
+    title: string
+    desc: string
+    priority: string
+    risk: string
+    color: string
+    icon: typeof AlertTriangle
+    action: string
+  }> = []
+
+  if (isClone) {
+    recommendations.push({
+      title: 'Report Account',
+      desc: `Immediately report the cloned account "${d.clone?.username ?? 'unknown'}" to the platform using the official reporting mechanism. Include the evidence ID for faster processing.`,
+      priority: 'Critical',
+      risk: 'Extreme',
+      color: '#FF3D71',
+      icon: AlertTriangle,
+      action: 'Report Now',
+    })
+  }
+
+  recommendations.push({
+    title: 'Enable Two-Factor Authentication',
+    desc: 'Enable 2FA on the original account to prevent further unauthorized access attempts. Use hardware keys or authenticator apps.',
+    priority: 'High',
+    risk: 'High',
+    color: '#FF9800',
+    icon: Lock,
+    action: 'Enable 2FA',
+  })
+
+  if (isClone) {
+    recommendations.push({
+      title: 'Inform Followers',
+      desc: 'Publish a notice on the original profile alerting followers that a cloned account exists. Include distinguishing characteristics.',
+      priority: 'High',
+      risk: 'High',
+      color: '#FF9800',
+      icon: Users,
+      action: 'Draft Alert',
+    })
+  }
+
+  recommendations.push({
+    title: 'Monitor Activity',
+    desc: 'Set up automated monitoring for further clone attempts. Track mentions, tags, and impersonation patterns over the next 30 days.',
+    priority: 'Medium',
+    risk: 'Medium',
+    color: '#FFD54F',
+    icon: Eye,
+    action: 'Set Monitor',
+  })
+
+  if (isClone) {
+    recommendations.push({
+      title: 'Block Account',
+      desc: `Block the cloned account "${d.clone?.username ?? 'unknown'}" immediately to limit its ability to interact with your followers and associate with your brand.`,
+      priority: 'Medium',
+      risk: 'Low',
+      color: '#00FFA3',
+      icon: Ban,
+      action: 'Block Account',
+    })
+  }
+
+  if (!isClone && !isSpammer) {
+    recommendations.push({
+      title: 'Maintain Security Hygiene',
+      desc: 'The profile appears genuine. Continue maintaining good security practices including regular password updates and monitoring.',
+      priority: 'Low',
+      risk: 'Low',
+      color: '#00FFA3',
+      icon: ShieldCheck,
+      action: 'Review Tips',
+    })
+  }
+
+  const actionCount = recommendations.length
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -64,7 +118,7 @@ export default function AIRecommendation() {
           <div className="w-1 h-6 rounded-full" style={{ background: 'linear-gradient(180deg, #00F5FF, #7B61FF)' }} />
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>AI Security Recommendations</h1>
         </div>
-        <p className="text-sm text-muted ml-4">Prioritized action plan generated by Recommendation Engine v2.1</p>
+        <p className="text-sm text-muted ml-4">Prioritized action plan generated by Recommendation Engine</p>
       </motion.div>
 
       {/* Banner */}
@@ -72,17 +126,25 @@ export default function AIRecommendation() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl p-5 flex items-center gap-4"
-        style={{ border: '1px solid rgba(255,61,113,0.2)', background: 'rgba(255,61,113,0.04)' }}
+        style={{
+          border: isCritical ? '1px solid rgba(255,61,113,0.2)' : '1px solid rgba(0,255,163,0.2)',
+          background: isCritical ? 'rgba(255,61,113,0.04)' : 'rgba(0,255,163,0.04)',
+        }}
       >
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(255,61,113,0.1)' }}>
-          <Shield size={22} color="#FF3D71" />
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: isCritical ? 'rgba(255,61,113,0.1)' : 'rgba(0,255,163,0.1)' }}>
+          {isCritical ? <Shield size={22} color="#FF3D71" /> : <ShieldCheck size={22} color="#00FFA3" />}
         </div>
         <div>
-          <div className="font-bold text-sm mb-0.5" style={{ fontFamily: 'Space Grotesk', color: '#FF3D71' }}>CRITICAL THREAT DETECTED</div>
-          <p className="text-xs text-muted">5 security actions recommended. Immediate response required to protect identity integrity and inform affected parties.</p>
+          <div className="font-bold text-sm mb-0.5" style={{ fontFamily: 'Space Grotesk', color: isCritical ? '#FF3D71' : '#00FFA3' }}>
+            {isCritical ? 'CRITICAL THREAT DETECTED' : 'PROFILE APPEARS SAFE'}
+          </div>
+          <p className="text-xs text-muted">
+            {actionCount} security {actionCount === 1 ? 'action' : 'actions'} recommended.
+            {isCritical ? ' Immediate response required to protect identity integrity.' : ' Continue monitoring for changes.'}
+          </p>
         </div>
         <div className="ml-auto text-right hidden md:block">
-          <div className="text-2xl font-bold font-mono text-danger">5</div>
+          <div className="text-2xl font-bold font-mono" style={{ color: isCritical ? '#FF3D71' : '#00FFA3' }}>{actionCount}</div>
           <div className="text-xs text-muted">Actions</div>
         </div>
       </motion.div>

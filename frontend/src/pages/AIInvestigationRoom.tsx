@@ -4,6 +4,17 @@ import { CheckCircle, Loader, Activity } from 'lucide-react'
 
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history' | 'settings'
 
+interface InvestigationData {
+  profile?: { prediction: number; result: string }
+  spammer?: { prediction: number; result: string }
+  username?: { username_similarity: number; match: boolean }
+  bio?: { bio_similarity: number; match: boolean }
+  face?: { verified: boolean; distance: number; threshold: number } | null
+  analyze?: { trust_score: number; status: string; risk: string }
+  original?: { username: string; displayName: string; bio: string; image: string | null }
+  clone?: { username: string; displayName: string; bio: string; image: string | null }
+}
+
 interface AIInvestigationRoomProps {
   onNavigate: (page: Page, data?: unknown) => void
   investigationData?: unknown
@@ -20,24 +31,73 @@ const modules = [
   { id: 'recommend', label: 'Recommendation Engine', color: '#7B61FF', delay: 5600 },
 ]
 
-const consoleLogs = [
-  { t: 200, msg: '[INIT] Loading AI pipeline...', color: '#94A3B8' },
-  { t: 600, msg: '[FACE] DeepFace model initialized', color: '#00F5FF' },
-  { t: 900, msg: '[FACE] Extracting facial embeddings...', color: '#00F5FF' },
-  { t: 1400, msg: '[FACE] Cosine distance: 0.142 — MATCH', color: '#00FFA3' },
-  { t: 1800, msg: '[USERNAME] Tokenizing identifiers...', color: '#7B61FF' },
-  { t: 2200, msg: '[USERNAME] Levenshtein score: 0.87', color: '#7B61FF' },
-  { t: 2600, msg: '[BIO] NLP embedding similarity: 0.74', color: '#00FFA3' },
-  { t: 3000, msg: '[BIO] Topic model: 93% overlap detected', color: '#00FFA3' },
-  { t: 3400, msg: '[FAKE] Profile classification: FAKE 94.2%', color: '#FFD54F' },
-  { t: 3800, msg: '[SPAMMER] Behavioral flags: 7/9 triggered', color: '#FF9800' },
-  { t: 4200, msg: '[DECISION] Aggregating model outputs...', color: '#FF3D71' },
-  { t: 4600, msg: '[DECISION] Clone probability: 94.2%', color: '#FF3D71' },
-  { t: 5000, msg: '[XAI] Computing SHAP feature importances...', color: '#00F5FF' },
-  { t: 5400, msg: '[XAI] Explanation generated', color: '#00F5FF' },
-  { t: 5800, msg: '[RECOMMEND] Generating security recommendations...', color: '#7B61FF' },
-  { t: 6200, msg: '[COMPLETE] Analysis finished. Trust Score: 12/100', color: '#00FFA3' },
-]
+function buildLogs(data: InvestigationData) {
+  const logs: { t: number; msg: string; color: string }[] = []
+  let t = 200
+
+  logs.push({ t, msg: '[INIT] Loading AI pipeline...', color: '#94A3B8' })
+  t += 400
+
+  // Face
+  if (data.face) {
+    logs.push({ t, msg: '[FACE] DeepFace model initialized', color: '#00F5FF' })
+    t += 300
+    logs.push({ t, msg: '[FACE] Extracting facial embeddings...', color: '#00F5FF' })
+    t += 500
+    const dist = data.face.distance.toFixed(3)
+    const status = data.face.verified ? 'MATCH' : 'NO MATCH'
+    logs.push({ t, msg: `[FACE] Cosine distance: ${dist} — ${status}`, color: data.face.verified ? '#00FFA3' : '#FF3D71' })
+    t += 400
+  } else {
+    logs.push({ t, msg: '[FACE] No images provided — skipping face verification', color: '#94A3B8' })
+    t += 700
+  }
+
+  // Username
+  logs.push({ t, msg: '[USERNAME] Tokenizing identifiers...', color: '#7B61FF' })
+  t += 400
+  const us = data.username?.username_similarity ?? 0
+  logs.push({ t, msg: `[USERNAME] Levenshtein score: ${(us / 100).toFixed(2)}`, color: '#7B61FF' })
+  t += 400
+
+  // Bio
+  logs.push({ t, msg: '[BIO] NLP embedding similarity: ' + ((data.bio?.bio_similarity ?? 0) / 100).toFixed(2), color: '#00FFA3' })
+  t += 400
+  logs.push({ t, msg: `[BIO] Topic model: ${Math.round(data.bio?.bio_similarity ?? 0)}% overlap detected`, color: '#00FFA3' })
+  t += 400
+
+  // Fake profile
+  const fakePct = data.profile?.prediction === 1 ? 94.2 : 5.8
+  const fakeLabel = data.profile?.prediction === 1 ? 'FAKE' : 'GENUINE'
+  logs.push({ t, msg: `[FAKE] Profile classification: ${fakeLabel} ${fakePct.toFixed(1)}%`, color: '#FFD54F' })
+  t += 400
+
+  // Spammer
+  const spamLabel = data.spammer?.prediction === 1 ? 'SPAMMER' : 'NOT SPAMMER'
+  logs.push({ t, msg: `[SPAMMER] Behavioral flags: ${spamLabel} detected`, color: '#FF9800' })
+  t += 400
+
+  // Decision
+  logs.push({ t, msg: '[DECISION] Aggregating model outputs...', color: '#FF3D71' })
+  t += 400
+  const trust = data.analyze?.trust_score ?? 50
+  const cloneProb = Math.max(0, 100 - trust)
+  logs.push({ t, msg: `[DECISION] Clone probability: ${cloneProb.toFixed(1)}%`, color: '#FF3D71' })
+  t += 400
+
+  // XAI
+  logs.push({ t, msg: '[XAI] Computing SHAP feature importances...', color: '#00F5FF' })
+  t += 400
+  logs.push({ t, msg: '[XAI] Explanation generated', color: '#00F5FF' })
+  t += 400
+
+  // Recommend
+  logs.push({ t, msg: '[RECOMMEND] Generating security recommendations...', color: '#7B61FF' })
+  t += 400
+  logs.push({ t, msg: `[COMPLETE] Analysis finished. Trust Score: ${Math.round(trust)}/100`, color: '#00FFA3' })
+
+  return logs
+}
 
 function AICore() {
   return (
@@ -85,12 +145,15 @@ function AICore() {
 }
 
 export default function AIInvestigationRoom({ onNavigate, investigationData }: AIInvestigationRoomProps) {
+  const data = (investigationData as InvestigationData) || {}
+  const consoleLogs = buildLogs(data)
+  const totalDuration = consoleLogs.length > 0 ? consoleLogs[consoleLogs.length - 1].t + 800 : 7000
+
   const [activeModules, setActiveModules] = useState<string[]>([])
   const [logs, setLogs] = useState<typeof consoleLogs>([])
   const [progress, setProgress] = useState(0)
   const [done, setDone] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
-  const totalDuration = 7000
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
@@ -125,6 +188,7 @@ export default function AIInvestigationRoom({ onNavigate, investigationData }: A
       timers.forEach(clearTimeout)
       clearInterval(progressInterval)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

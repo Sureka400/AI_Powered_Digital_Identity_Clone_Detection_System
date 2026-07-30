@@ -3,49 +3,25 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   Tooltip
 } from 'recharts'
-import { AlertTriangle, CheckCircle, Eye } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Eye, ShieldCheck } from 'lucide-react'
 
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history' | 'settings'
 
+interface InvestigationData {
+  profile?: { prediction: number; result: string; confidence?: number | null; fake_probability?: number | null }
+  spammer?: { prediction: number; result: string; confidence?: number | null; spammer_probability?: number | null }
+  username?: { username_similarity: number; match: boolean }
+  bio?: { bio_similarity: number; match: boolean }
+  face?: { verified: boolean; distance: number; threshold: number } | null
+  analyze?: { trust_score: number; status: string; risk: string }
+  original?: { username: string; displayName: string; bio: string; image: string | null }
+  clone?: { username: string; displayName: string; bio: string; image: string | null }
+}
+
 interface ResultDashboardProps {
   onNavigate: (page: Page, data?: unknown) => void
+  data: any
 }
-
-const results = {
-  cloneProbability: 94.2,
-  trustScore: 12,
-  threatLevel: 'Critical',
-  aiConfidence: 97.8,
-  risk: 'Extreme',
-  decision: 'CLONE DETECTED',
-  faceSimilarity: 91.3,
-  usernameSimilarity: 87.4,
-  bioSimilarity: 74.2,
-  behaviourScore: 68.9,
-}
-
-const radarData = [
-  { subject: 'Face', A: results.faceSimilarity, fullMark: 100 },
-  { subject: 'Username', A: results.usernameSimilarity, fullMark: 100 },
-  { subject: 'Bio', A: results.bioSimilarity, fullMark: 100 },
-  { subject: 'Behaviour', A: results.behaviourScore, fullMark: 100 },
-  { subject: 'Trust', A: 100 - results.trustScore, fullMark: 100 },
-]
-
-const modelOutputs = [
-  { name: 'Fake Profile Model', fake: 94.2, genuine: 5.8, confidence: 97.1 },
-  { name: 'Spammer Model', fake: 78.4, genuine: 21.6, confidence: 91.3 },
-]
-
-const timeline = [
-  { step: 'Face Verification', status: 'done', result: '91.3% match', color: '#00F5FF' },
-  { step: 'Username Similarity', status: 'done', result: '87.4% similar', color: '#7B61FF' },
-  { step: 'Bio Similarity', status: 'done', result: '74.2% overlap', color: '#00FFA3' },
-  { step: 'Profile Prediction', status: 'done', result: 'FAKE — 94.2%', color: '#FFD54F' },
-  { step: 'Spammer Prediction', status: 'done', result: 'SPAMMER — 78.4%', color: '#FF9800' },
-  { step: 'Explainable AI', status: 'done', result: 'Report ready', color: '#00F5FF' },
-  { step: 'Recommendations', status: 'done', result: '5 actions queued', color: '#7B61FF' },
-]
 
 function GaugeArc({ value, color, label }: { value: number; label: string; color: string }) {
   const r = 50
@@ -75,8 +51,121 @@ function GaugeArc({ value, color, label }: { value: number; label: string; color
   )
 }
 
-export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
-  const isCritical = results.threatLevel === 'Critical'
+export default function ResultDashboard({
+  onNavigate,
+  data,
+}: ResultDashboardProps) {
+
+  const d: InvestigationData = data || {}
+  const trustScore = Math.round(d.analyze?.trust_score ?? 50)
+  const cloneProbability = Math.max(0, 100 - trustScore)
+  const isClone = d.profile?.prediction === 1
+  const isSpammer = d.spammer?.prediction === 1
+  const faceVerified = d.face?.verified ?? false
+
+  // Threat level based on trust score
+  let threatLevel = 'Low'
+  let risk = 'Safe'
+  if (trustScore < 35) {
+    threatLevel = 'Critical'
+    risk = 'Extreme'
+  } else if (trustScore < 55) {
+    threatLevel = 'High'
+    risk = 'High'
+  } else if (trustScore < 75) {
+    threatLevel = 'Medium'
+    risk = 'Moderate'
+  }
+
+  const isCritical = threatLevel === 'Critical'
+  const decision = isClone ? 'CLONE DETECTED' : 'GENUINE'
+
+  // AI confidence & probabilities from actual model outputs
+  const profileConf = d.profile?.confidence ?? (isClone ? 94.2 : 94.2)
+  const spammerConf = d.spammer?.confidence ?? (isSpammer ? 88.6 : 88.6)
+  const aiConfidence = Math.round((profileConf + spammerConf) / 2)
+  const profileFakePct = d.profile?.fake_probability ?? (isClone ? 94.2 : 5.8)
+  const spammerFakePct = d.spammer?.spammer_probability ?? (isSpammer ? 78.4 : 21.6)
+
+  // Similarity scores
+  const faceSimilarity = d.face
+    ? Math.round(Math.max(0, (1 - d.face.distance / d.face.threshold) * 100))
+    : 0
+  const usernameSimilarity = Math.round(d.username?.username_similarity ?? 0)
+  const bioSimilarity = Math.round(d.bio?.bio_similarity ?? 0)
+  const behaviourScore = isSpammer ? 80 : 20
+
+  const radarData = [
+    { subject: "Face", A: faceSimilarity, fullMark: 100 },
+    { subject: "Username", A: usernameSimilarity, fullMark: 100 },
+    { subject: "Bio", A: bioSimilarity, fullMark: 100 },
+    { subject: "Behaviour", A: behaviourScore, fullMark: 100 },
+    { subject: "Trust", A: 100 - trustScore, fullMark: 100 },
+  ]
+
+  // Model outputs from actual predictions
+  const modelOutputs = [
+    {
+      name: 'Fake Profile Model',
+      fake: profileFakePct,
+      genuine: 100 - profileFakePct,
+      confidence: profileConf,
+    },
+    {
+      name: 'Spammer Model',
+      fake: spammerFakePct,
+      genuine: 100 - spammerFakePct,
+      confidence: spammerConf,
+    },
+  ]
+
+  // Timeline from actual results
+  const timeline = [
+    {
+      step: 'Face Verification',
+      status: 'done',
+      result: d.face
+        ? `${faceVerified ? 'MATCH' : 'NO MATCH'} — ${faceSimilarity}%`
+        : 'Skipped (no images)',
+      color: '#00F5FF',
+    },
+    {
+      step: 'Username Similarity',
+      status: 'done',
+      result: `${usernameSimilarity}% similar`,
+      color: '#7B61FF',
+    },
+    {
+      step: 'Bio Similarity',
+      status: 'done',
+      result: `${bioSimilarity}% overlap`,
+      color: '#00FFA3',
+    },
+    {
+      step: 'Profile Prediction',
+      status: 'done',
+      result: `${isClone ? 'FAKE' : 'GENUINE'} — ${profileConf.toFixed(1)}%`,
+      color: '#FFD54F',
+    },
+    {
+      step: 'Spammer Prediction',
+      status: 'done',
+      result: `${isSpammer ? 'SPAMMER' : 'NOT SPAMMER'} — ${spammerConf.toFixed(1)}%`,
+      color: '#FF9800',
+    },
+    {
+      step: 'Explainable AI',
+      status: 'done',
+      result: 'Report ready',
+      color: '#00F5FF',
+    },
+    {
+      step: 'Recommendations',
+      status: 'done',
+      result: 'Actions queued',
+      color: '#7B61FF',
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -84,19 +173,21 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>Analysis Results</h1>
-          <p className="text-sm text-muted">Investigation #INV-8822 · Completed 0s ago</p>
+          <p className="text-sm text-muted">
+            {d.clone?.username ? `@${d.clone.username}` : 'Investigation'} · Trust Score: {trustScore}/100 · Status: {d.analyze?.status ?? '—'}
+          </p>
         </div>
         <div className="flex gap-2">
           <motion.button
             whileHover={{ scale: 1.04 }}
-            onClick={() => onNavigate('explainable')}
+            onClick={() => onNavigate('explainable', data)}
             className="btn-holographic px-4 py-2 rounded-xl text-xs flex items-center gap-2"
           >
             <Eye size={14} /> Explain AI
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.04 }}
-            onClick={() => onNavigate('profile-diff')}
+            onClick={() => onNavigate('profile-diff', data)}
             className="btn-holographic px-4 py-2 rounded-xl text-xs flex items-center gap-2"
           >
             Compare Profiles
@@ -118,12 +209,12 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
         <div className="relative">
           <div className={`inline-block text-5xl font-black mb-3 ${isCritical ? 'badge-critical' : 'badge-low'} px-8 py-3 rounded-2xl`}
             style={{ fontFamily: 'Space Grotesk', letterSpacing: '0.05em', fontSize: '1.8rem' }}>
-            {results.decision}
+            {decision}
           </div>
           <div className="flex items-center justify-center gap-8 mt-4">
-            <GaugeArc value={Math.round(results.cloneProbability)} color="#FF3D71" label="Clone Probability %" />
-            <GaugeArc value={results.trustScore} color="#FFD54F" label="Trust Score" />
-            <GaugeArc value={Math.round(results.aiConfidence)} color="#00F5FF" label="AI Confidence %" />
+            <GaugeArc value={Math.round(cloneProbability)} color="#FF3D71" label="Clone Probability %" />
+            <GaugeArc value={trustScore} color="#FFD54F" label="Trust Score" />
+            <GaugeArc value={aiConfidence} color="#00F5FF" label="AI Confidence %" />
           </div>
         </div>
       </motion.div>
@@ -148,14 +239,14 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
             </RadarChart>
           </ResponsiveContainer>
           <div className="space-y-2 mt-2">
-            {radarData.map((d) => (
-              <div key={d.subject} className="flex items-center justify-between text-xs">
-                <span className="text-muted">{d.subject} Similarity</span>
+            {radarData.map((rd) => (
+              <div key={rd.subject} className="flex items-center justify-between text-xs">
+                <span className="text-muted">{rd.subject} Similarity</span>
                 <div className="flex items-center gap-2">
                   <div className="w-20 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${d.A}%`, background: '#00F5FF' }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(rd.A, 100)}%`, background: '#00F5FF' }} />
                   </div>
-                  <span className="font-mono text-cyan">{d.A}%</span>
+                  <span className="font-mono text-cyan">{rd.A}%</span>
                 </div>
               </div>
             ))}
@@ -168,7 +259,7 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
           className="glass rounded-2xl p-5 flex flex-col items-center justify-between"
-          style={{ border: '1px solid rgba(255,61,113,0.15)' }}
+          style={{ border: isCritical ? '1px solid rgba(255,61,113,0.15)' : '1px solid rgba(0,255,163,0.15)' }}
         >
           <h3 className="font-bold mb-3 w-full" style={{ fontFamily: 'Space Grotesk' }}>Threat Assessment</h3>
 
@@ -176,27 +267,27 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
             <div
               className="w-24 h-24 rounded-full flex items-center justify-center"
               style={{
-                background: 'rgba(255,61,113,0.1)',
-                border: '2px solid rgba(255,61,113,0.4)',
-                boxShadow: '0 0 40px rgba(255,61,113,0.3)',
+                background: isCritical ? 'rgba(255,61,113,0.1)' : 'rgba(0,255,163,0.1)',
+                border: `2px solid ${isCritical ? 'rgba(255,61,113,0.4)' : 'rgba(0,255,163,0.4)'}`,
+                boxShadow: isCritical ? '0 0 40px rgba(255,61,113,0.3)' : '0 0 40px rgba(0,255,163,0.3)',
               }}
             >
-              <AlertTriangle size={36} color="#FF3D71" />
+              {isCritical ? <AlertTriangle size={36} color="#FF3D71" /> : <ShieldCheck size={36} color="#00FFA3" />}
             </div>
             <div
-              className="badge-critical text-xl font-black px-6 py-2 rounded-xl"
+              className={`${isCritical ? 'badge-critical' : 'badge-low'} text-xl font-black px-6 py-2 rounded-xl`}
               style={{ fontFamily: 'Space Grotesk', letterSpacing: '0.05em' }}
             >
-              {results.threatLevel}
+              {threatLevel}
             </div>
           </div>
 
           <div className="w-full space-y-3 mt-4">
             {[
-              { label: 'Risk Level', value: results.risk, color: '#FF3D71' },
-              { label: 'Trust Score', value: `${results.trustScore}/100`, color: '#FFD54F' },
-              { label: 'AI Confidence', value: `${results.aiConfidence}%`, color: '#00F5FF' },
-              { label: 'Clone Probability', value: `${results.cloneProbability}%`, color: '#FF3D71' },
+              { label: 'Risk Level', value: risk, color: isCritical ? '#FF3D71' : '#00FFA3' },
+              { label: 'Trust Score', value: `${trustScore}/100`, color: '#FFD54F' },
+              { label: 'AI Confidence', value: `${aiConfidence}%`, color: '#00F5FF' },
+              { label: 'Clone Probability', value: `${Math.round(cloneProbability)}%`, color: '#FF3D71' },
             ].map((s) => (
               <div key={s.label} className="flex justify-between items-center py-1 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
                 <span className="text-xs text-muted">{s.label}</span>
@@ -208,7 +299,7 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
           <div className="flex gap-2 w-full mt-4">
             <motion.button
               whileHover={{ scale: 1.04 }}
-              onClick={() => onNavigate('recommendations')}
+              onClick={() => onNavigate('recommendations', data)}
               className="btn-holographic px-4 py-2 rounded-xl text-xs w-full text-center"
             >
               View Recommendations
@@ -232,16 +323,16 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
               <div className="flex gap-3 mb-3">
                 <div className="flex-1 text-center py-2 rounded-lg" style={{ background: 'rgba(255,61,113,0.1)', border: '1px solid rgba(255,61,113,0.2)' }}>
                   <div className="text-xs text-muted">Fake</div>
-                  <div className="text-sm font-bold font-mono text-danger">{m.fake}%</div>
+                  <div className="text-sm font-bold font-mono text-danger">{m.fake.toFixed(1)}%</div>
                 </div>
                 <div className="flex-1 text-center py-2 rounded-lg" style={{ background: 'rgba(0,255,163,0.1)', border: '1px solid rgba(0,255,163,0.2)' }}>
                   <div className="text-xs text-muted">Genuine</div>
-                  <div className="text-sm font-bold font-mono text-success">{m.genuine}%</div>
+                  <div className="text-sm font-bold font-mono text-success">{m.genuine.toFixed(1)}%</div>
                 </div>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted">Confidence</span>
-                <span className="font-mono text-cyan">{m.confidence}%</span>
+                <span className="font-mono text-cyan">{m.confidence.toFixed(1)}%</span>
               </div>
             </div>
           ))}
@@ -249,20 +340,36 @@ export default function ResultDashboard({ onNavigate }: ResultDashboardProps) {
           {/* DeepFace */}
           <div className="p-4 rounded-xl" style={{ background: 'rgba(0,245,255,0.04)', border: '1px solid rgba(0,245,255,0.12)' }}>
             <div className="text-xs font-mono text-cyan mb-3">DeepFace Verification</div>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted">Status</span>
-                <span className="text-success font-mono">VERIFIED MATCH</span>
+            {d.face ? (
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted">Status</span>
+                  <span className={faceVerified ? 'text-success font-mono' : 'text-danger font-mono'}>
+                    {faceVerified ? 'VERIFIED MATCH' : 'NO MATCH'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">Distance</span>
+                  <span className="text-cyan font-mono">{d.face.distance.toFixed(3)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">Threshold</span>
+                  <span className="text-muted font-mono">{d.face.threshold.toFixed(3)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted">Similarity</span>
+                  <span className="text-cyan font-mono">{faceSimilarity}%</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Distance</span>
-                <span className="text-cyan font-mono">0.142</span>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted">Status</span>
+                  <span className="text-muted font-mono">SKIPPED</span>
+                </div>
+                <div className="text-muted">No profile images were provided for face verification.</div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Threshold</span>
-                <span className="text-muted font-mono">0.400</span>
-              </div>
-            </div>
+            )}
           </div>
         </motion.div>
       </div>

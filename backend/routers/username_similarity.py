@@ -17,3 +17,16 @@ class UsernameResponse(BaseModel):
     username_similarity: float
     match: bool
 
+
+@router.post("/similarity", response_model=UsernameResponse)
+async def username_similarity(data: UsernameRequest):
+
+    result = UsernameService.compare(
+        data.username1,
+        data.username2
+    )
+
+    return UsernameResponse(
+        username_similarity=result["username_similarity"],
+        match=result["match"]
+    )

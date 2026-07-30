@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class SpammerRequest(BaseModel):
@@ -19,3 +20,5 @@ class SpammerRequest(BaseModel):
 class SpammerResponse(BaseModel):
     prediction: int
     result: str
+    confidence: Optional[float] = None
+    spammer_probability: Optional[float] = None

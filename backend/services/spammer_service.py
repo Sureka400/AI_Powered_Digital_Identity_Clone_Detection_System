@@ -35,7 +35,22 @@ class SpammerService:
 
         prediction = int(spammer_model.predict(features)[0])
 
+        # Try to get probability scores for confidence
+        confidence = None
+        spammer_probability = None
+        try:
+            if hasattr(spammer_model, "predict_proba"):
+                proba = spammer_model.predict_proba(features)[0]
+                # Assume class order is [0=Real, 1=Fake/Spammer]; adjust if needed
+                if len(proba) >= 2:
+                    confidence = round(float(max(proba)) * 100, 2)
+                    spammer_probability = round(float(proba[1]) * 100, 2)
+        except Exception:
+            pass
+
         return {
             "prediction": prediction,
-            "result": "Fake" if prediction == 1 else "Real"
+            "result": "Fake" if prediction == 1 else "Real",
+            "confidence": confidence,
+            "spammer_probability": spammer_probability
         }

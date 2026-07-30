@@ -163,10 +163,10 @@ export default function App() {
                       {page === 'dashboard' && <Dashboard />}
                       {page === 'investigation' && <NewInvestigation onNavigate={navigate} />}
                       {page === 'ai-room' && <AIInvestigationRoom onNavigate={navigate} investigationData={investigationData} />}
-                      {page === 'results' && <ResultDashboard onNavigate={navigate} />}
-                      {page === 'explainable' && <ExplainableAI />}
-                      {page === 'recommendations' && <AIRecommendation />}
-                      {page === 'profile-diff' && <ProfileDifference />}
+                      {page === 'results' && <ResultDashboard onNavigate={navigate} data={investigationData} />}
+                      {page === 'explainable' && <ExplainableAI data={investigationData} />}
+                      {page === 'recommendations' && <AIRecommendation data={investigationData} />}
+                      {page === 'profile-diff' && <ProfileDifference data={investigationData} />}
                       {page === 'threat-intel' && <ThreatIntelligence />}
                       {page === 'history' && <History />}
                       {page === 'settings' && <Settings />}
