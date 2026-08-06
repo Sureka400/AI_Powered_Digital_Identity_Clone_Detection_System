@@ -26,7 +26,8 @@ const priorityBadge = (priority: string) => {
 export default function AIRecommendation({ data }: AIRecommendationProps) {
   const d: InvestigationData = (data as InvestigationData) || {}
   const trustScore = Math.round(d.analyze?.trust_score ?? 50)
-  const isClone = d.profile?.prediction === 1
+  const analyzeStatus = d.analyze?.status ?? ''
+  const isClone = analyzeStatus === 'Clone' || analyzeStatus === 'Likely Clone'
   const isSpammer = d.spammer?.prediction === 1
   const isCritical = trustScore < 35
 

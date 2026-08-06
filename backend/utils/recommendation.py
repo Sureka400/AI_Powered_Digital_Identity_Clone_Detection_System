@@ -1,6 +1,6 @@
 def generate_recommendation(status):
 
-    if status == "Trusted":
+    if status in {"Trusted", "Genuine"}:
 
         return [
             "No action required.",

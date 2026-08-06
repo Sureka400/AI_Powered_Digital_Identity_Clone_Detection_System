@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from fastapi import APIRouter
 from schemas.analyze_schema import AnalyzeRequest, AnalyzeResponse
 from services.analyze_service import AnalyzeService
+from services.history_service import HistoryService
 
 router = APIRouter(
     prefix="/analyze",
@@ -19,6 +22,24 @@ async def analyze_profile(data: AnalyzeRequest):
         face_similarity=data.face_similarity,
         face_verified=data.face_verified,
     )
+
+    history_entry = {
+        "id": datetime.now().strftime("INV-%Y%m%d%H%M%S"),
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "original_username": data.original_username or "original",
+        "clone_username": data.clone_username or "clone",
+        "profile_fake": data.profile_fake,
+        "spammer": data.spammer,
+        "trust_score": result["trust_score"],
+        "risk_level": result.get("status", "Unknown"),
+        "face_verified": data.face_verified,
+        "face_similarity": data.face_similarity,
+        "bio_similarity": data.bio_similarity,
+        "username_similarity": data.username_similarity,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    HistoryService.save(history_entry)
 
     return AnalyzeResponse(
         trust_score=result["trust_score"],

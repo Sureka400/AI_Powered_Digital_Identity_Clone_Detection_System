@@ -171,22 +171,29 @@ function localTrustScore(
   faceVerified: boolean,
 ) {
   let score = 100
-  if (profileFake) score -= 35
-  if (spammer) score -= 20
-  if (usernameSim > 80) score -= 15
-  else if (usernameSim > 60) score -= 8
-  if (bioSim > 80) score -= 10
-  else if (bioSim > 60) score -= 5
-  if (faceSim > 80) score -= 20
-  else if (faceSim > 60) score -= 10
-  if (faceVerified) score -= 5
+  if (profileFake) score -= 20
+  if (spammer) score -= 5
+  if (usernameSim > 90) score -= 8
+  else if (usernameSim > 75) score -= 5
+  else if (usernameSim > 60) score -= 3
+  if (bioSim > 90) score -= 8
+  else if (bioSim > 75) score -= 5
+  else if (bioSim > 60) score -= 3
+  if (faceSim > 90) score -= 30
+  else if (faceSim > 80) score -= 18
+  else if (faceSim > 70) score -= 10
+  if (faceVerified) score -= 15
   score = Math.max(score, 0)
 
-  let status = 'Trusted'
+  let status = 'Genuine'
   let risk = 'Low'
-  if (score < 25) { status = 'Clone'; risk = 'Extreme' }
-  else if (score < 50) { status = 'Likely Clone'; risk = 'High' }
-  else if (score < 75) { status = 'Suspicious'; risk = 'Moderate' }
+  if (score < 50) {
+    status = 'Clone Detected'
+    risk = 'High'
+  } else if (score < 75) {
+    status = 'Suspicious'
+    risk = 'Moderate'
+  }
 
   return { trust_score: score, status, risk }
 }
@@ -517,6 +524,8 @@ export default function NewInvestigation({ onNavigate }: NewInvestigationProps) 
         bio_similarity: bioData.bio_similarity,
         face_similarity: faceSim,
         face_verified: faceData ? faceData.verified : false,
+        original_username: original.username,
+        clone_username: clone.username,
       });
       analyzeData = analyzeResponse.data;
     } catch (e) {

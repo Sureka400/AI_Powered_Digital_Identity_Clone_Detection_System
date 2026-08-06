@@ -59,9 +59,10 @@ export default function ResultDashboard({
   const d: InvestigationData = data || {}
   const trustScore = Math.round(d.analyze?.trust_score ?? 50)
   const cloneProbability = Math.max(0, 100 - trustScore)
-  const isClone = d.profile?.prediction === 1
-  const isSpammer = d.spammer?.prediction === 1
   const faceVerified = d.face?.verified ?? false
+  const analyzeStatus = d.analyze?.status ?? ''
+  const isClone = analyzeStatus === 'Clone' || analyzeStatus === 'Likely Clone' || analyzeStatus === 'Clone Detected'
+  const isSpammer = d.spammer?.prediction === 1
 
   // Threat level based on trust score
   let threatLevel = 'Low'
@@ -79,13 +80,16 @@ export default function ResultDashboard({
 
   const isCritical = threatLevel === 'Critical'
   const decision = isClone ? 'CLONE DETECTED' : 'GENUINE'
+  const decisionColor = isClone ? '#FF3D71' : '#00FFA3'
+  const decisionBg = isClone ? 'rgba(255,61,113,0.08)' : 'rgba(0,255,163,0.08)'
+  const decisionBorder = isClone ? 'rgba(255,61,113,0.3)' : 'rgba(0,255,163,0.3)'
 
   // AI confidence & probabilities from actual model outputs
-  const profileConf = d.profile?.confidence ?? (isClone ? 94.2 : 94.2)
-  const spammerConf = d.spammer?.confidence ?? (isSpammer ? 88.6 : 88.6)
+  const profileConf = d.profile?.confidence ?? 50
+  const spammerConf = d.spammer?.confidence ?? 50
   const aiConfidence = Math.round((profileConf + spammerConf) / 2)
-  const profileFakePct = d.profile?.fake_probability ?? (isClone ? 94.2 : 5.8)
-  const spammerFakePct = d.spammer?.spammer_probability ?? (isSpammer ? 78.4 : 21.6)
+  const profileFakePct = d.profile?.fake_probability ?? (d.profile?.prediction === 1 ? 94.2 : 5.8)
+  const spammerFakePct = d.spammer?.spammer_probability ?? (d.spammer?.prediction === 1 ? 78.4 : 21.6)
 
   // Similarity scores
   const faceSimilarity = d.face
@@ -93,7 +97,9 @@ export default function ResultDashboard({
     : 0
   const usernameSimilarity = Math.round(d.username?.username_similarity ?? 0)
   const bioSimilarity = Math.round(d.bio?.bio_similarity ?? 0)
-  const behaviourScore = isSpammer ? 80 : 20
+  const behaviourScore = d.spammer
+    ? Math.round(d.spammer.spammer_probability ?? d.spammer.confidence ?? (d.spammer.prediction === 1 ? 75 : 25))
+    : 0
 
   const radarData = [
     { subject: "Face", A: faceSimilarity, fullMark: 100 },
@@ -167,6 +173,37 @@ export default function ResultDashboard({
     },
   ]
 
+  function ProfilePreviewCard({ title, data, color }: { title: string; data?: { username?: string; displayName?: string; bio?: string; image: string | null } ; color: string }) {
+    return (
+      <div className="glass rounded-3xl overflow-hidden border p-4" style={{ borderColor: `${color}20` }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-xs font-mono text-muted" style={{ letterSpacing: '0.18em' }}>{title}</div>
+            <div className="text-sm font-semibold" style={{ color }}>{data?.username ? `@${data.username}` : 'No username'}</div>
+          </div>
+          <div className="text-xs font-semibold uppercase" style={{ color }}>{title === 'Original Profile' ? 'ORIGINAL' : 'CLONE'}</div>
+        </div>
+        <div className="rounded-3xl overflow-hidden bg-slate-950 mb-4" style={{ minHeight: 160, border: `1px solid ${color}14` }}>
+          {data?.image ? (
+            <img src={data.image} alt={`${title} image`} className="w-full h-40 object-cover" />
+          ) : (
+            <div className="flex h-40 items-center justify-center text-xs text-muted">No image provided</div>
+          )}
+        </div>
+        <div className="space-y-2 text-xs">
+          <div>
+            <div className="text-muted">Display Name</div>
+            <div className="font-mono text-white">{data?.displayName || '—'}</div>
+          </div>
+          <div>
+            <div className="text-muted">Biography</div>
+            <div className="font-mono text-white line-clamp-3">{data?.bio || '—'}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -195,20 +232,38 @@ export default function ResultDashboard({
         </div>
       </motion.div>
 
+      {/* Profile preview cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 xl:grid-cols-2 gap-4"
+      >
+        <ProfilePreviewCard title="Original Profile" data={d.original} color="#00F5FF" />
+        <ProfilePreviewCard title="Suspected Clone" data={d.clone} color="#7B61FF" />
+      </motion.div>
+
       {/* Decision banner */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="rounded-2xl p-6 text-center relative overflow-hidden"
         style={{
-          background: isCritical ? 'rgba(255,61,113,0.08)' : 'rgba(0,255,163,0.08)',
-          border: `1px solid ${isCritical ? 'rgba(255,61,113,0.3)' : 'rgba(0,255,163,0.3)'}`,
+          background: decisionBg,
+          border: `1px solid ${decisionBorder}`,
         }}
       >
         <div className="absolute inset-0 cyber-grid opacity-20" />
         <div className="relative">
-          <div className={`inline-block text-5xl font-black mb-3 ${isCritical ? 'badge-critical' : 'badge-low'} px-8 py-3 rounded-2xl`}
-            style={{ fontFamily: 'Space Grotesk', letterSpacing: '0.05em', fontSize: '1.8rem' }}>
+          <div className={`inline-block text-5xl font-black mb-3 px-8 py-3 rounded-2xl`}
+            style={{
+              fontFamily: 'Space Grotesk',
+              letterSpacing: '0.05em',
+              fontSize: '1.8rem',
+              background: isClone ? 'rgba(255,61,113,0.15)' : 'rgba(0,255,163,0.15)',
+              color: decisionColor,
+              border: `1px solid ${decisionColor}33`,
+            }}>
             {decision}
           </div>
           <div className="flex items-center justify-center gap-8 mt-4">

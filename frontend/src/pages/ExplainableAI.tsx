@@ -22,8 +22,10 @@ export default function ExplainableAI({ data }: ExplainableAIProps) {
   const [selected, setSelected] = useState<number | null>(null)
 
   const trustScore = Math.round(d.analyze?.trust_score ?? 50)
-  const isClone = d.profile?.prediction === 1
+  const analyzeStatus = d.analyze?.status ?? ''
+  const isClone = analyzeStatus === 'Clone' || analyzeStatus === 'Likely Clone'
   const isSpammer = d.spammer?.prediction === 1
+  const resultColor = isClone ? '#FF3D71' : '#00FFA3'
   const faceSimilarity = d.face
     ? Math.round(Math.max(0, (1 - d.face.distance / d.face.threshold) * 100))
     : 0
@@ -103,6 +105,9 @@ export default function ExplainableAI({ data }: ExplainableAIProps) {
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>Explainable AI</h1>
         </div>
         <p className="text-sm text-muted ml-4">Why did AI classify this profile as {isClone ? 'a Clone' : 'Genuine'}?</p>
+        <div className="mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold" style={{ background: `${resultColor}15`, color: resultColor, border: `1px solid ${resultColor}30` }}>
+          {isClone ? 'CLONE' : 'GENUINE'}
+        </div>
       </motion.div>
 
       {/* AI Summary */}

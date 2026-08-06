@@ -67,7 +67,7 @@ function buildLogs(data: InvestigationData) {
   t += 400
 
   // Fake profile
-  const fakePct = data.profile?.prediction === 1 ? 94.2 : 5.8
+  const fakePct = data.profile?.confidence ?? 50
   const fakeLabel = data.profile?.prediction === 1 ? 'FAKE' : 'GENUINE'
   logs.push({ t, msg: `[FAKE] Profile classification: ${fakeLabel} ${fakePct.toFixed(1)}%`, color: '#FFD54F' })
   t += 400
@@ -78,11 +78,12 @@ function buildLogs(data: InvestigationData) {
   t += 400
 
   // Decision
-  logs.push({ t, msg: '[DECISION] Aggregating model outputs...', color: '#FF3D71' })
-  t += 400
+  const analyzeStatus = data.analyze?.status ?? 'Pending analysis'
   const trust = data.analyze?.trust_score ?? 50
   const cloneProb = Math.max(0, 100 - trust)
-  logs.push({ t, msg: `[DECISION] Clone probability: ${cloneProb.toFixed(1)}%`, color: '#FF3D71' })
+  logs.push({ t, msg: '[DECISION] Aggregating model outputs...', color: '#FF3D71' })
+  t += 400
+  logs.push({ t, msg: `[DECISION] Final status: ${analyzeStatus} — Clone probability ${cloneProb.toFixed(1)}%`, color: '#FF3D71' })
   t += 400
 
   // XAI

@@ -11,6 +11,7 @@ tensorflow
 rapidfuzz
 sentence-transformers
 python-dotenv
+pymongo[srv]
 reportlab
 pillow
 pydantic

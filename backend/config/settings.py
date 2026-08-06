@@ -10,3 +10,6 @@ HOST = os.getenv("HOST")
 PORT = int(os.getenv("PORT"))
 
 DEBUG = os.getenv("DEBUG") == "True"
+
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DB = os.getenv("MONGODB_DB", "digital_identity")

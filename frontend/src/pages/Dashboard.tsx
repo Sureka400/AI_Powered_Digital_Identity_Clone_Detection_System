@@ -5,6 +5,24 @@ import {
 } from 'recharts'
 import { Eye, FileText, Shield, Activity, Cpu, TrendingUp } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import api from '../api/api'
+
+interface HistoryItem {
+  id: string
+  date?: string
+  timestamp?: string
+  original_username?: string
+  clone_username?: string
+  profile_fake?: boolean
+  spammer?: boolean
+  trust_score: number
+  risk_level?: string
+  face_verified?: boolean
+  face_similarity?: number
+  bio_similarity?: number
+  username_similarity?: number
+  recommendation?: string[]
+}
 
 function AnimatedNumber({ value }: { value: number }) {
   const [display, setDisplay] = useState(0)
@@ -22,61 +40,176 @@ function AnimatedNumber({ value }: { value: number }) {
   return <>{display.toLocaleString()}</>
 }
 
-const weeklyData = [
-  { day: 'Mon', detections: 142, scans: 890, threats: 23 },
-  { day: 'Tue', detections: 198, scans: 1240, threats: 41 },
-  { day: 'Wed', detections: 167, scans: 1050, threats: 18 },
-  { day: 'Thu', detections: 234, scans: 1480, threats: 56 },
-  { day: 'Fri', detections: 289, scans: 1720, threats: 67 },
-  { day: 'Sat', detections: 178, scans: 1100, threats: 31 },
-  { day: 'Sun', detections: 312, scans: 1950, threats: 78 },
-]
-
-const threatDist = [
-  { name: 'Critical', value: 12, color: '#FF3D71' },
-  { name: 'High', value: 28, color: '#FF9800' },
-  { name: 'Medium', value: 41, color: '#FFD54F' },
-  { name: 'Low', value: 19, color: '#00FFA3' },
-]
-
-const trendData = [
-  { month: 'Jan', accuracy: 94.2 }, { month: 'Feb', accuracy: 95.8 },
-  { month: 'Mar', accuracy: 96.1 }, { month: 'Apr', accuracy: 97.3 },
-  { month: 'May', accuracy: 97.8 }, { month: 'Jun', accuracy: 98.2 },
-  { month: 'Jul', accuracy: 98.6 },
-]
-
-const recentActivity = [
-  { id: 'INV-8821', user: '@shadowtech99', clone: '@5hadowtech99', score: 94.2, threat: 'Critical', time: '2m ago' },
-  { id: 'INV-8820', user: '@elena.ross', clone: '@elena.r0ss', score: 71.8, threat: 'High', time: '8m ago' },
-  { id: 'INV-8819', user: '@cryptoking', clone: '@crypt0king', score: 45.3, threat: 'Medium', time: '15m ago' },
-  { id: 'INV-8818', user: '@healthguru', clone: '@health_guru_', score: 28.1, threat: 'Low', time: '31m ago' },
-  { id: 'INV-8817', user: '@techfounder', clone: '@techf0under', score: 88.7, threat: 'Critical', time: '45m ago' },
-]
-
-const aiModules = [
-  { name: 'Face Verification (DeepFace)', status: 99.1, color: '#00F5FF' },
-  { name: 'Username Similarity', status: 97.8, color: '#7B61FF' },
-  { name: 'Bio Analysis NLP', status: 98.4, color: '#00FFA3' },
-  { name: 'Fake Profile Classifier', status: 96.2, color: '#FFD54F' },
-  { name: 'Spammer Detection', status: 97.1, color: '#FF3D71' },
-]
-
-const cards = [
-  { label: 'Profiles Scanned', value: 2847391, icon: Eye, color: '#00F5FF', change: '+12.4%' },
-  { label: "Today's Reports", value: 487, icon: FileText, color: '#7B61FF', change: '+8.1%' },
-  { label: 'Clone Detection Rate', value: 98, suffix: '%', icon: Shield, color: '#00FFA3', change: '+0.4%' },
-  { label: 'Avg Trust Score', value: 76, suffix: '/100', icon: Activity, color: '#FFD54F', change: '-2.1%' },
-]
-
 function ThreatBadge({ level }: { level: string }) {
-  const cls = level === 'Critical' ? 'badge-critical' : level === 'High' ? 'badge-high' : level === 'Medium' ? 'badge-medium' : 'badge-low'
+  const normalized =
+    level === 'Trusted' || level === 'Low' || level === 'Genuine' ? 'Genuine' :
+    level === 'Suspicious' ? 'Suspicious' :
+    level === 'Clone' || level === 'Likely Clone' || level === 'Clone Detected' ? 'Clone Detected' :
+    level
+
+  const cls = normalized === 'Clone Detected'
+    ? 'badge-critical'
+    : normalized === 'Suspicious'
+    ? 'badge-high'
+    : normalized === 'Medium'
+    ? 'badge-medium'
+    : 'badge-low'
+
   return (
-    <span className={`${cls} text-xs px-2 py-0.5 rounded-full font-mono`}>{level}</span>
+    <span className={`${cls} text-xs px-2 py-0.5 rounded-full font-mono`}>{normalized}</span>
   )
 }
 
 export default function Dashboard() {
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<'All' | 'Genuine' | 'Suspicious' | 'Clone Detected'>('All')
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await api.get('/history')
+        setHistoryItems(response.data.history || [])
+      } catch (error) {
+        console.error('Unable to load history data:', error)
+      }
+    }
+
+    fetchHistory()
+  }, [])
+
+  const parseTimestamp = (value: string | undefined) => {
+    if (!value) return null
+    const normalized = value.replace(' ', 'T')
+    const date = new Date(normalized)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const totalScans = historyItems.length
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const reportsToday = historyItems.filter((item) => {
+    const timestamp = parseTimestamp(item.timestamp || item.date)
+    return timestamp ? timestamp.toISOString().slice(0, 10) === todayKey : false
+  }).length
+  const avgTrust = totalScans ? Math.round(historyItems.reduce((sum, item) => sum + item.trust_score, 0) / totalScans) : 0
+  const cloneRate = totalScans
+    ? Math.round(historyItems.filter((item) => item.trust_score < 50).length / totalScans * 100)
+    : 0
+
+  const normalizeStatus = (item: HistoryItem) => {
+    const status = item.risk_level || ''
+    if (status === 'Trusted' || status === 'Low' || status === 'Genuine') return 'Genuine'
+    if (status === 'Suspicious') return 'Suspicious'
+    if (status === 'Clone' || status === 'Likely Clone' || status === 'Clone Detected') return 'Clone Detected'
+    if (item.trust_score >= 75) return 'Genuine'
+    if (item.trust_score >= 50) return 'Suspicious'
+    return 'Clone Detected'
+  }
+
+  const filteredHistoryItems = selectedStatusFilter === 'All'
+    ? historyItems
+    : historyItems.filter((item) => normalizeStatus(item) === selectedStatusFilter)
+
+  const riskCounts = filteredHistoryItems.reduce(
+    (acc, item) => {
+      const bucket = item.trust_score < 35 ? 'Critical' : item.trust_score < 55 ? 'High' : item.trust_score < 75 ? 'Medium' : 'Low'
+      acc[bucket] = (acc[bucket] || 0) + 1
+      return acc
+    },
+    { Critical: 0, High: 0, Medium: 0, Low: 0 } as Record<string, number>,
+  )
+
+  const filteredTotal = filteredHistoryItems.length
+
+  const threatDist = [
+    { name: 'Critical', value: filteredTotal ? Math.round((riskCounts.Critical / filteredTotal) * 100) : 0, color: '#FF3D71' },
+    { name: 'High', value: filteredTotal ? Math.round((riskCounts.High / filteredTotal) * 100) : 0, color: '#FF9800' },
+    { name: 'Medium', value: filteredTotal ? Math.round((riskCounts.Medium / filteredTotal) * 100) : 0, color: '#FFD54F' },
+    { name: 'Low', value: filteredTotal ? Math.round((riskCounts.Low / filteredTotal) * 100) : 0, color: '#00FFA3' },
+  ]
+
+  const lastSevenDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - index))
+    return date
+  })
+
+  const weeklyMap = historyItems.reduce<Record<string, { detections: number; scans: number; threats: number }>>((acc, item) => {
+    const timestamp = parseTimestamp(item.timestamp || item.date)
+    if (!timestamp) return acc
+    const key = timestamp.toISOString().slice(0, 10)
+    if (!acc[key]) acc[key] = { detections: 0, scans: 0, threats: 0 }
+    acc[key].detections += 1
+    acc[key].scans += 1
+    if (item.risk_level === 'Critical' || item.risk_level === 'High' || normalizeStatus(item) === 'Clone Detected') {
+      acc[key].threats += 1
+    }
+    return acc
+  }, {})
+
+  const weekNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const weeklyData = lastSevenDays.map((date) => {
+    const key = date.toISOString().slice(0, 10)
+    return {
+      day: weekNames[date.getDay()],
+      detections: weeklyMap[key]?.detections ?? 0,
+      scans: weeklyMap[key]?.scans ?? 0,
+      threats: weeklyMap[key]?.threats ?? 0,
+    }
+  })
+
+  const recentActivity = filteredHistoryItems
+    .slice()
+    .sort((a, b) => {
+      const dateA = parseTimestamp(a.timestamp || a.date)
+      const dateB = parseTimestamp(b.timestamp || b.date)
+      return (dateB?.getTime() ?? 0) - (dateA?.getTime() ?? 0)
+    })
+    .slice(0, 5)
+    .map((item, index) => ({
+      id: item.id || item.timestamp || `history-${index}`,
+      user: item.original_username || 'unknown',
+      clone: item.clone_username || '-',
+      score: item.trust_score,
+      threat: normalizeStatus(item),
+      time: (item.timestamp || item.date || '').split(' ')[1] ?? '—',
+    }))
+
+  const faceCount = historyItems.filter((item) => item.face_similarity != null).length
+  const faceHealth = faceCount
+    ? Math.round(historyItems.reduce((sum, item) => sum + (item.face_similarity ?? 0), 0) / faceCount)
+    : 0
+  const usernameCount = historyItems.filter((item) => item.username_similarity != null).length
+  const usernameHealth = usernameCount
+    ? Math.round(historyItems.reduce((sum, item) => sum + (item.username_similarity ?? 0), 0) / usernameCount)
+    : 0
+  const bioCount = historyItems.filter((item) => item.bio_similarity != null).length
+  const bioHealth = bioCount
+    ? Math.round(historyItems.reduce((sum, item) => sum + (item.bio_similarity ?? 0), 0) / bioCount)
+    : 0
+  const fakeProfileHealth = totalScans
+    ? Math.round(100 - (historyItems.filter((item) => item.profile_fake).length / totalScans) * 100)
+    : 0
+  const spammerHealth = totalScans
+    ? Math.round(100 - (historyItems.filter((item) => item.spammer).length / totalScans) * 100)
+    : 0
+
+  const aiHealthMetrics = [
+    { name: 'Face Verification (DeepFace)', status: faceHealth, color: '#00F5FF' },
+    { name: 'Username Similarity', status: usernameHealth, color: '#7B61FF' },
+    { name: 'Bio Analysis NLP', status: bioHealth, color: '#00FFA3' },
+    { name: 'Fake Profile Classifier', status: fakeProfileHealth, color: '#FFD54F' },
+    { name: 'Spammer Detection', status: spammerHealth, color: '#FF3D71' },
+  ]
+
+  const cards = [
+    { label: 'Profiles Scanned', value: totalScans, icon: Eye, color: '#00F5FF', change: '+0.0%' },
+    { label: "Today's Reports", value: reportsToday, icon: FileText, color: '#7B61FF', change: '+0.0%' },
+    { label: 'Clone Detection Rate', value: cloneRate, suffix: '%', icon: Shield, color: '#00FFA3', change: '+0.0%' },
+    { label: 'Avg Trust Score', value: avgTrust, suffix: '/100', icon: Activity, color: '#FFD54F', change: '+0.0%' },
+  ]
+
+  const detectionAccuracy = totalScans ? Math.max(0, 100 - cloneRate) : 0
+
   return (
     <div className="space-y-6">
       {/* Hero banner */}
@@ -101,7 +234,7 @@ export default function Dashboard() {
           </div>
           <div className="hidden md:flex items-center gap-4">
             <div className="text-right">
-              <div className="text-3xl font-bold text-cyan font-mono">98.6%</div>
+              <div className="text-3xl font-bold text-cyan font-mono">{detectionAccuracy}%</div>
               <div className="text-xs text-muted">Detection Accuracy</div>
             </div>
             <div className="w-16 h-16 relative">
@@ -232,22 +365,52 @@ export default function Dashboard() {
           style={{ border: '1px solid rgba(0,245,255,0.08)' }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold" style={{ fontFamily: 'Space Grotesk' }}>Recent Activity</h3>
-            <span className="text-xs text-cyan cursor-pointer hover:underline">View All →</span>
+            <div>
+              <h3 className="font-bold" style={{ fontFamily: 'Space Grotesk' }}>Recent Activity</h3>
+              <p className="text-xs text-muted mt-1">Showing {selectedStatusFilter === 'All' ? 'all activity' : selectedStatusFilter} records</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {(['All', 'Genuine', 'Suspicious', 'Clone Detected'] as const).map((filter) => {
+                const isActive = selectedStatusFilter === filter
+                const color =
+                  filter === 'Clone Detected' ? '#FF3D71' :
+                  filter === 'Suspicious' ? '#FFD54F' :
+                  filter === 'Genuine' ? '#00FFA3' :
+                  '#00F5FF'
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => setSelectedStatusFilter(filter)}
+                    className="text-xs font-mono px-3 py-1 rounded-full transition-colors"
+                    style={{
+                      border: `1px solid ${isActive ? color : 'rgba(255,255,255,0.1)'}`,
+                      background: isActive ? `${color}20` : 'transparent',
+                      color: isActive ? color : '#94A3B8',
+                    }}
+                  >
+                    {filter}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           <div className="space-y-3">
-            {recentActivity.map((item) => (
-              <div key={item.id} className="flex items-center gap-4 py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-                <div className="text-xs font-mono text-muted w-20 shrink-0">{item.id}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate">{item.user}</div>
-                  <div className="text-xs text-muted truncate">→ {item.clone}</div>
+            {recentActivity.length === 0 ? (
+              <div className="py-10 text-center text-muted">No recent activity for this filter.</div>
+            ) : (
+              recentActivity.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                  <div className="text-xs font-mono text-muted w-20 shrink-0">{item.id}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white truncate">{item.user}</div>
+                    <div className="text-xs text-muted truncate">→ {item.clone}</div>
+                  </div>
+                  <div className="text-xs font-mono text-cyan">{item.score}%</div>
+                  <ThreatBadge level={item.threat} />
+                  <div className="text-xs text-muted shrink-0">{item.time}</div>
                 </div>
-                <div className="text-xs font-mono text-cyan">{item.score}%</div>
-                <ThreatBadge level={item.threat} />
-                <div className="text-xs text-muted shrink-0">{item.time}</div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </motion.div>
 
@@ -264,7 +427,7 @@ export default function Dashboard() {
             <h3 className="font-bold" style={{ fontFamily: 'Space Grotesk' }}>AI Health</h3>
           </div>
           <div className="space-y-4">
-            {aiModules.map((mod) => (
+            {aiHealthMetrics.map((mod) => (
               <div key={mod.name}>
                 <div className="flex justify-between text-xs mb-1.5">
                   <span className="text-muted truncate pr-2">{mod.name}</span>
@@ -290,7 +453,7 @@ export default function Dashboard() {
               <span className="text-xs text-muted">Detection Trend</span>
             </div>
             <ResponsiveContainer width="100%" height={60}>
-              <LineChart data={trendData}>
+              <LineChart data={weeklyData.map((row) => ({ day: row.day, accuracy: row.detections }))}>
                 <Line type="monotone" dataKey="accuracy" stroke="#00FFA3" strokeWidth={2} dot={false} />
                 <Tooltip contentStyle={{ background: 'rgba(11,17,32,0.95)', border: '1px solid rgba(0,245,255,0.2)', borderRadius: 8, fontFamily: 'JetBrains Mono', fontSize: 11 }} />
               </LineChart>

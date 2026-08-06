@@ -9,50 +9,53 @@ def calculate_trust_score(
 
     score = 100
 
-    # Fake profile is a strong signal
+    # Fake profile is a strong signal.
     if profile_fake:
-        score -= 35
+        score -= 30
 
-    # Spammer behavior
+    # Spammer behavior is a weaker risk signal.
     if spammer:
+        score -= 5
+
+    # Username similarity penalties.
+    if username_similarity > 90:
         score -= 20
-
-    # High username similarity suggests clone
-    if username_similarity > 80:
-        score -= 15
+    elif username_similarity > 75:
+        score -= 10
     elif username_similarity > 60:
-        score -= 8
+        score -= 5
 
-    # High bio similarity suggests clone
-    if bio_similarity > 80:
+    # Bio similarity penalties.
+    if bio_similarity > 90:
+        score -= 20
+    elif bio_similarity > 75:
         score -= 10
     elif bio_similarity > 60:
         score -= 5
 
-    # High face similarity suggests same person (potential clone using same face)
-    if face_similarity > 80:
+    # Face similarity is strong evidence.
+    if face_similarity > 90:
+        score -= 30
+    elif face_similarity > 80:
         score -= 20
-    elif face_similarity > 60:
+    elif face_similarity > 70:
         score -= 10
 
-    # Face verified means DeepFace confirmed it's the same person
+    # Face verified is a strong sign of identity overlap.
     if face_verified:
-        score -= 5
+        score -= 15
 
     score = max(score, 0)
 
     if score >= 75:
-        status = "Trusted"
+        status = "Genuine"
         risk = "Low"
     elif score >= 50:
         status = "Suspicious"
         risk = "Moderate"
-    elif score >= 25:
-        status = "Likely Clone"
-        risk = "High"
     else:
-        status = "Clone"
-        risk = "Extreme"
+        status = "Clone Detected"
+        risk = "High"
 
     return {
         "trust_score": score,

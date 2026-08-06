@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -8,6 +10,8 @@ class AnalyzeRequest(BaseModel):
     bio_similarity: float
     face_similarity: float
     face_verified: bool
+    original_username: Optional[str] = None
+    clone_username: Optional[str] = None
 
 
 class AnalyzeResponse(BaseModel):

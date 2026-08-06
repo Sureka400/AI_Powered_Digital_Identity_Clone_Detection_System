@@ -1,6 +1,8 @@
 import json
 import os
 
+from config.database import history_collection
+
 
 class HistoryService:
 
@@ -8,6 +10,9 @@ class HistoryService:
 
     @staticmethod
     def save(data):
+        if history_collection is not None:
+            history_collection.insert_one(data)
+            return
 
         os.makedirs("history", exist_ok=True)
 
@@ -28,6 +33,9 @@ class HistoryService:
 
     @staticmethod
     def get():
+        if history_collection is not None:
+            results = list(history_collection.find({}, {"_id": 0}).sort("timestamp", -1))
+            return results
 
         if not os.path.exists(HistoryService.FILE):
             return []

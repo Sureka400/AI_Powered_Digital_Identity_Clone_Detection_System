@@ -1,5 +1,5 @@
 
-TRUSTED = "Trusted"
+TRUSTED = "Genuine"
 
 SUSPICIOUS = "Suspicious"
 

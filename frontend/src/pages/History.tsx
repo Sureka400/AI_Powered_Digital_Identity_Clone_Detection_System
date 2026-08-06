@@ -1,17 +1,23 @@
 import { motion } from 'framer-motion'
 import { Download, Eye, Search, Filter, ChevronDown } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import api from '../api/api'
 
-const historyData = [
-  { id: 'INV-8822', date: '2026-07-27 14:32', original: '@shadowtech99', clone: '@5hadowtech99', trust: 12, prob: 94.2, threat: 'Critical', status: 'Confirmed' },
-  { id: 'INV-8821', date: '2026-07-27 13:18', original: '@cryptoking', clone: '@crypt0king', trust: 18, prob: 88.7, threat: 'Critical', status: 'Confirmed' },
-  { id: 'INV-8820', date: '2026-07-27 11:45', original: '@elena.ross', clone: '@elena.r0ss', trust: 31, prob: 71.8, threat: 'High', status: 'Under Review' },
-  { id: 'INV-8819', date: '2026-07-27 09:22', original: '@techfounder', clone: '@techf0under', trust: 44, prob: 61.3, threat: 'High', status: 'Confirmed' },
-  { id: 'INV-8818', date: '2026-07-26 22:10', original: '@healthguru', clone: '@health_guru_', trust: 58, prob: 45.3, threat: 'Medium', status: 'False Positive' },
-  { id: 'INV-8817', date: '2026-07-26 19:55', original: '@airesearch', clone: '@a1research', trust: 72, prob: 32.1, threat: 'Low', status: 'Cleared' },
-  { id: 'INV-8816', date: '2026-07-26 17:31', original: '@designpro', clone: '@des1gnpro', trust: 25, prob: 79.4, threat: 'High', status: 'Confirmed' },
-  { id: 'INV-8815', date: '2026-07-26 14:08', original: '@musicstar', clone: '@mus1cstar_', trust: 11, prob: 96.1, threat: 'Critical', status: 'Confirmed' },
-]
+interface HistoryRow {
+  id: string
+  date?: string
+  timestamp?: string
+  original_username?: string
+  clone_username?: string
+  profile_fake?: boolean
+  spammer?: boolean
+  trust_score: number
+  risk_level?: string
+  face_verified?: boolean
+  face_similarity?: number
+  bio_similarity?: number
+  username_similarity?: number
+}
 
 function ThreatBadge({ level }: { level: string }) {
   const cls = level === 'Critical' ? 'badge-critical' : level === 'High' ? 'badge-high' : level === 'Medium' ? 'badge-medium' : 'badge-low'
@@ -36,13 +42,28 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function History() {
+  const [historyData, setHistoryData] = useState<HistoryRow[]>([])
   const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await api.get('/history')
+        setHistoryData(response.data.history || [])
+      } catch (error) {
+        console.error('Unable to load history:', error)
+      }
+    }
+    fetchHistory()
+  }, [])
+
   const filtered = historyData.filter(
     (r) =>
-      r.original.includes(search) ||
-      r.clone.includes(search) ||
-      r.id.includes(search) ||
-      r.threat.toLowerCase().includes(search.toLowerCase()),
+      (r.original_username || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.clone_username || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.risk_level || '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.timestamp || r.date || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(r.trust_score).includes(search),
   )
 
   return (
@@ -110,14 +131,14 @@ export default function History() {
               className="grid gap-3 px-5 py-3 items-center border-b hover:bg-white/[0.02] transition-colors"
               style={{ gridTemplateColumns: '110px 120px 1fr 1fr 70px 80px 90px 80px 100px', borderColor: 'rgba(255,255,255,0.04)' }}
             >
-              <div className="text-xs font-mono text-muted">{row.date.split(' ')[0]}</div>
+              <div className="text-xs font-mono text-muted">{(row.timestamp || row.date || '').split(' ')[0]}</div>
               <div className="text-xs font-mono text-cyan">{row.id}</div>
-              <div className="text-sm text-white truncate">{row.original}</div>
-              <div className="text-sm text-danger truncate">{row.clone}</div>
-              <div className="text-xs font-mono" style={{ color: row.trust < 30 ? '#FF3D71' : row.trust < 60 ? '#FFD54F' : '#00FFA3' }}>{row.trust}/100</div>
-              <div className="text-xs font-mono text-cyan">{row.prob}%</div>
-              <ThreatBadge level={row.threat} />
-              <StatusBadge status={row.status} />
+              <div className="text-sm text-white truncate">{row.original_username || 'unknown'}</div>
+              <div className="text-sm text-danger truncate">{row.clone_username || '-'}</div>
+              <div className="text-xs font-mono" style={{ color: row.trust_score < 30 ? '#FF3D71' : row.trust_score < 60 ? '#FFD54F' : '#00FFA3' }}>{row.trust_score}/100</div>
+              <div className="text-xs font-mono text-cyan">{Math.round((row.face_similarity || 0) * 100) / 100}%</div>
+              <ThreatBadge level={row.risk_level || 'Unknown'} />
+              <StatusBadge status={row.risk_level || 'Unknown'} />
               <div className="flex items-center gap-2">
                 <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="View Report">
                   <Eye size={13} color="#00F5FF" />

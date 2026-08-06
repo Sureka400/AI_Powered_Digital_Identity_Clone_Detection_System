@@ -134,6 +134,37 @@ export default function ProfileDifference({ data }: ProfileDifferenceProps) {
   const changed = fields.filter((f) => f.status === 'changed').length
   const suspicious = fields.filter((f) => f.status === 'suspicious').length
 
+  function ProfileImagePreview({ label, data, color }: { label: string; data?: ProfileInfo; color: string }) {
+    return (
+      <div className="glass rounded-3xl overflow-hidden border p-4" style={{ borderColor: `${color}20` }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-xs font-mono text-muted" style={{ letterSpacing: '0.18em' }}>{label}</div>
+            <div className="text-sm font-semibold" style={{ color }}>{data?.username ? `@${data.username}` : 'No username'}</div>
+          </div>
+          <div className="text-xs uppercase font-bold" style={{ color }}>{label === 'Original' ? 'ORIGINAL' : 'CLONE'}</div>
+        </div>
+        <div className="rounded-3xl overflow-hidden bg-slate-950 mb-4" style={{ minHeight: 160, border: `1px solid ${color}14` }}>
+          {data?.image ? (
+            <img src={data.image} alt={`${label} image`} className="w-full h-40 object-cover" />
+          ) : (
+            <div className="flex h-40 items-center justify-center text-xs text-muted">No image available</div>
+          )}
+        </div>
+        <div className="text-xs space-y-2">
+          <div>
+            <div className="text-muted">Display Name</div>
+            <div className="font-mono text-white">{data?.displayName || '—'}</div>
+          </div>
+          <div>
+            <div className="text-muted">Biography</div>
+            <div className="font-mono text-white line-clamp-3">{data?.bio || '—'}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -142,6 +173,15 @@ export default function ProfileDifference({ data }: ProfileDifferenceProps) {
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>Profile Difference Analysis</h1>
         </div>
         <p className="text-sm text-muted ml-4">Field-by-field comparison highlighting every discrepancy</p>
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+      >
+        <ProfileImagePreview label="Original" data={orig} color="#00F5FF" />
+        <ProfileImagePreview label="Clone" data={cln} color="#7B61FF" />
       </motion.div>
 
       {/* Legend */}
