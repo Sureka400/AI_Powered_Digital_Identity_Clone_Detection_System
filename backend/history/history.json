@@ -1,0 +1,17 @@
+[
+    {
+        "id": "INV-20260807092611",
+        "date": "2026-08-07 09:26:11",
+        "original_username": "JOhn",
+        "clone_username": "Sonny87",
+        "profile_fake": true,
+        "spammer": true,
+        "trust_score": 65,
+        "risk_level": "Suspicious",
+        "face_verified": false,
+        "face_similarity": -37.0,
+        "bio_similarity": 28.43000030517578,
+        "username_similarity": 36.36,
+        "timestamp": "2026-08-07 09:26:11"
+    }
+]

@@ -11,8 +11,11 @@ interface HistoryRow {
   clone_username?: string
   profile_fake?: boolean
   spammer?: boolean
+  decision?: string
+  decision_label?: string
   trust_score: number
   risk_level?: string
+  status?: string
   face_verified?: boolean
   face_similarity?: number
   bio_similarity?: number
@@ -44,6 +47,9 @@ function StatusBadge({ status }: { status: string }) {
 export default function History() {
   const [historyData, setHistoryData] = useState<HistoryRow[]>([])
   const [search, setSearch] = useState('')
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'clone' | 'genuine' | 'suspicious'>('all')
+  const [selectedRow, setSelectedRow] = useState<HistoryRow | null>(null)
+  const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -57,14 +63,80 @@ export default function History() {
     fetchHistory()
   }, [])
 
-  const filtered = historyData.filter(
-    (r) =>
-      (r.original_username || '').toLowerCase().includes(search.toLowerCase()) ||
-      (r.clone_username || '').toLowerCase().includes(search.toLowerCase()) ||
-      (r.risk_level || '').toLowerCase().includes(search.toLowerCase()) ||
-      (r.timestamp || r.date || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(r.trust_score).includes(search),
-  )
+  // Handlers for view and download
+  const viewDetails = (row: HistoryRow) => {
+    setSelectedRow(row)
+    setShowModal(true)
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setSelectedRow(null)
+  }
+
+  const downloadReport = async (row: HistoryRow) => {
+    try {
+      const payload = {
+        // Backwards-compatible fields per ReportRequest
+        profile_name: row.original_username || row.clone_username || row.id || 'unknown',
+        trust_score: row.trust_score ?? 0,
+        clone_probability: row.face_similarity ?? row.username_similarity ?? 0,
+        status: row.decision || row.decision_label || row.risk_level || 'Unknown',
+        recommendation: (row.decision || row.decision_label || '').toLowerCase().includes('clone') ? 'Flag for review' : 'No action',
+
+        // Extended metadata for richer PDF
+        id: row.id,
+        username: row.clone_username || row.original_username,
+        original_username: row.original_username,
+        clone_username: row.clone_username,
+        face_similarity: row.face_similarity,
+        bio_similarity: row.bio_similarity,
+        decision: row.decision || row.decision_label || row.risk_level || 'Unknown',
+      }
+
+      // Request PDF as arraybuffer to reliably build a blob
+      const resp = await api.post('/report', payload, { responseType: 'arraybuffer' })
+      const blob = new Blob([resp.data], { type: 'application/pdf' })
+
+      // Try to get filename from response headers
+      let filename = `${row.id}.pdf`
+      const contentDisposition = resp.headers && (resp.headers['content-disposition'] || resp.headers['Content-Disposition'])
+      if (contentDisposition) {
+        const match = /filename\*?=(?:UTF-8'')?"?([^";\n]+)/i.exec(contentDisposition)
+        if (match && match[1]) filename = decodeURIComponent(match[1].replace(/"/g, ''))
+      }
+
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Report download failed', e)
+    }
+  }
+
+  const filtered = historyData.filter((r) => {
+    const q = search.toLowerCase()
+    const matchesSearch =
+      (r.original_username || '').toLowerCase().includes(q) ||
+      (r.clone_username || '').toLowerCase().includes(q) ||
+      (r.decision || r.decision_label || '').toLowerCase().includes(q) ||
+      (r.risk_level || r.status || '').toLowerCase().includes(q) ||
+      (r.timestamp || r.date || '').toLowerCase().includes(q) ||
+      String(r.trust_score).includes(q)
+
+    if (!matchesSearch) return false
+
+    if (selectedFilter === 'all') return true
+    if (selectedFilter === 'clone') return ((r.decision || r.decision_label) || '').toLowerCase() === 'clone' || ((r.risk_level || '').toLowerCase().includes('clone'))
+    if (selectedFilter === 'genuine') return ((r.decision || r.decision_label) || '').toLowerCase() === 'genuine'
+    if (selectedFilter === 'suspicious') return ((r.risk_level || r.status || '').toLowerCase().includes('suspicious'))
+    return true
+  })
 
   return (
     <div className="space-y-6">
@@ -90,14 +162,30 @@ export default function History() {
               className="bg-transparent text-sm outline-none text-white placeholder-slate-600 w-40"
             />
           </div>
-          <button
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted hover:text-white transition-colors"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            <Filter size={14} />
-            Filter
-            <ChevronDown size={12} />
-          </button>
+
+          {/* Quick filters */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedFilter('all')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedFilter === 'all' ? 'bg-white/5' : ''}`}
+              style={{ border: '1px solid rgba(255,255,255,0.06)' }}
+            >All</button>
+            <button
+              onClick={() => setSelectedFilter('clone')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedFilter === 'clone' ? 'bg-white/5' : ''}`}
+              style={{ border: '1px solid rgba(255,255,255,0.06)', color: '#FF3D71' }}
+            >Clone Detected</button>
+            <button
+              onClick={() => setSelectedFilter('suspicious')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedFilter === 'suspicious' ? 'bg-white/5' : ''}`}
+              style={{ border: '1px solid rgba(255,255,255,0.06)', color: '#FFD54F' }}
+            >Suspicious</button>
+            <button
+              onClick={() => setSelectedFilter('genuine')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedFilter === 'genuine' ? 'bg-white/5' : ''}`}
+              style={{ border: '1px solid rgba(255,255,255,0.06)', color: '#00FFA3' }}
+            >Genuine</button>
+          </div>
         </div>
       </motion.div>
 
@@ -137,13 +225,15 @@ export default function History() {
               <div className="text-sm text-danger truncate">{row.clone_username || '-'}</div>
               <div className="text-xs font-mono" style={{ color: row.trust_score < 30 ? '#FF3D71' : row.trust_score < 60 ? '#FFD54F' : '#00FFA3' }}>{row.trust_score}/100</div>
               <div className="text-xs font-mono text-cyan">{Math.round((row.face_similarity || 0) * 100) / 100}%</div>
-              <ThreatBadge level={row.risk_level || 'Unknown'} />
-              <StatusBadge status={row.risk_level || 'Unknown'} />
+              <ThreatBadge level={row.risk_level || row.status || 'Unknown'} />
+              <div className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ color: (row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F', background: `${(row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F'}15`, border: `1px solid ${(row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F'}30` }}>
+                {row.decision || row.decision_label || 'Unknown'}
+              </div>
               <div className="flex items-center gap-2">
-                <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="View Report">
+                <button onClick={() => viewDetails(row)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="View Details">
                   <Eye size={13} color="#00F5FF" />
                 </button>
-                <button className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Export PDF">
+                <button onClick={() => downloadReport(row)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Download Report">
                   <Download size={13} color="#94A3B8" />
                 </button>
               </div>
@@ -151,6 +241,42 @@ export default function History() {
           ))
         )}
       </motion.div>
+      {/* Details modal */}
+      {showModal && selectedRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={closeModal} />
+          <div className="relative w-[min(900px,95%)] bg-slate-900 rounded-2xl p-6 z-60">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="text-xs font-mono text-muted">Investigation</div>
+                <div className="text-lg font-semibold">{selectedRow.id} · {selectedRow.original_username} vs {selectedRow.clone_username}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => downloadReport(selectedRow)} className="px-3 py-2 rounded-lg" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>Download PDF</button>
+                <button onClick={closeModal} className="px-3 py-2 rounded-lg">Close</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="text-xs text-muted">Original</div>
+                <div className="text-sm font-mono">{selectedRow.original_username}</div>
+                <div className="text-xs text-muted">Trust Score</div>
+                <div className="text-sm font-mono">{selectedRow.trust_score}/100</div>
+                <div className="text-xs text-muted">Decision</div>
+                <div className="text-sm font-mono">{selectedRow.decision || selectedRow.decision_label || selectedRow.risk_level}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs text-muted">Clone</div>
+                <div className="text-sm font-mono">{selectedRow.clone_username}</div>
+                <div className="text-xs text-muted">Face similarity</div>
+                <div className="text-sm font-mono">{selectedRow.face_similarity ?? '—'}</div>
+                <div className="text-xs text-muted">Bio similarity</div>
+                <div className="text-sm font-mono">{selectedRow.bio_similarity ?? '—'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

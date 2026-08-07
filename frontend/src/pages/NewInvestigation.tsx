@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Upload, Zap, Loader, AlertCircle } from 'lucide-react'
 import api from "../api/api";
-type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history' | 'settings'
+type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history'
 
 interface ProfileData {
   image: string | null

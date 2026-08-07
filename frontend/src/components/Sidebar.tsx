@@ -4,7 +4,6 @@ import {
   Search,
   Shield,
   Clock,
-  Settings,
   Zap,
   Activity,
   ChevronRight,
@@ -29,7 +28,6 @@ type Page =
   | 'profile-diff'
   | 'threat-intel'
   | 'history'
-  | 'settings'
 
 interface SidebarProps {
   current: Page
@@ -41,7 +39,6 @@ const mainNav = [
   { id: 'investigation' as Page, label: 'New Investigation', icon: Search },
   { id: 'threat-intel' as Page, label: 'Threat Intelligence', icon: Shield },
   { id: 'history' as Page, label: 'Analysis History', icon: Clock },
-  { id: 'settings' as Page, label: 'Settings', icon: Settings },
 ]
 
 const analysisNav = [

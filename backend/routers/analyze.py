@@ -23,6 +23,7 @@ async def analyze_profile(data: AnalyzeRequest):
         face_verified=data.face_verified,
     )
 
+    decision_label = "Clone" if data.profile_fake else "Genuine"
     history_entry = {
         "id": datetime.now().strftime("INV-%Y%m%d%H%M%S"),
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -30,8 +31,11 @@ async def analyze_profile(data: AnalyzeRequest):
         "clone_username": data.clone_username or "clone",
         "profile_fake": data.profile_fake,
         "spammer": data.spammer,
+        "decision": decision_label,
+        "decision_label": decision_label,
         "trust_score": result["trust_score"],
         "risk_level": result.get("status", "Unknown"),
+        "status": result.get("status", "Unknown"),
         "face_verified": data.face_verified,
         "face_similarity": data.face_similarity,
         "bio_similarity": data.bio_similarity,

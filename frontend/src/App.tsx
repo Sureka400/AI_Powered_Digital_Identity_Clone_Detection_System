@@ -13,7 +13,6 @@ import AIRecommendation from './pages/AIRecommendation'
 import ProfileDifference from './pages/ProfileDifference'
 import ThreatIntelligence from './pages/ThreatIntelligence'
 import History from './pages/History'
-import Settings from './pages/Settings'
 
 type Page =
   | 'landing'
@@ -26,7 +25,6 @@ type Page =
   | 'profile-diff'
   | 'threat-intel'
   | 'history'
-  | 'settings'
 
 
 const pageTitles: Record<Page, string> = {
@@ -40,7 +38,6 @@ const pageTitles: Record<Page, string> = {
   'profile-diff': 'Profile Difference',
   'threat-intel': 'Threat Intelligence',
   history: 'Analysis History',
-  settings: 'Settings',
 }
 
 // Mouse spotlight effect
@@ -169,7 +166,6 @@ export default function App() {
                       {page === 'profile-diff' && <ProfileDifference data={investigationData} />}
                       {page === 'threat-intel' && <ThreatIntelligence />}
                       {page === 'history' && <History />}
-                      {page === 'settings' && <Settings />}
                     </motion.div>
                   </AnimatePresence>
                 </div>
