@@ -22,6 +22,11 @@ interface HistoryRow {
   username_similarity?: number
 }
 
+function getDisplayStatus(row: HistoryRow): string {
+  const value = row.decision || row.decision_label || row.status || row.risk_level || 'Unknown'
+  return value && value.trim() ? value : 'Unknown'
+}
+
 function ThreatBadge({ level }: { level: string }) {
   const cls = level === 'Critical' ? 'badge-critical' : level === 'High' ? 'badge-high' : level === 'Medium' ? 'badge-medium' : 'badge-low'
   return <span className={`${cls} text-xs px-2 py-0.5 rounded-full font-mono`}>{level}</span>
@@ -226,8 +231,8 @@ export default function History() {
               <div className="text-xs font-mono" style={{ color: row.trust_score < 30 ? '#FF3D71' : row.trust_score < 60 ? '#FFD54F' : '#00FFA3' }}>{row.trust_score}/100</div>
               <div className="text-xs font-mono text-cyan">{Math.round((row.face_similarity || 0) * 100) / 100}%</div>
               <ThreatBadge level={row.risk_level || row.status || 'Unknown'} />
-              <div className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ color: (row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F', background: `${(row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F'}15`, border: `1px solid ${(row.decision || row.decision_label || '').toLowerCase() === 'clone' ? '#FF3D71' : (row.decision || row.decision_label || '').toLowerCase() === 'genuine' ? '#00FFA3' : '#FFD54F'}30` }}>
-                {row.decision || row.decision_label || 'Unknown'}
+              <div className="text-xs px-2 py-0.5 rounded-full font-mono" style={{ color: getDisplayStatus(row).toLowerCase().includes('clone') || getDisplayStatus(row).toLowerCase().includes('fake') ? '#FF3D71' : getDisplayStatus(row).toLowerCase().includes('genuine') ? '#00FFA3' : '#FFD54F', background: `${getDisplayStatus(row).toLowerCase().includes('clone') || getDisplayStatus(row).toLowerCase().includes('fake') ? '#FF3D71' : getDisplayStatus(row).toLowerCase().includes('genuine') ? '#00FFA3' : '#FFD54F'}15`, border: `1px solid ${getDisplayStatus(row).toLowerCase().includes('clone') || getDisplayStatus(row).toLowerCase().includes('fake') ? '#FF3D71' : getDisplayStatus(row).toLowerCase().includes('genuine') ? '#00FFA3' : '#FFD54F'}30` }}>
+                {getDisplayStatus(row)}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => viewDetails(row)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="View Details">
