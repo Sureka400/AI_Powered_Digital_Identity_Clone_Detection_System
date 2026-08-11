@@ -13,6 +13,7 @@ import AIRecommendation from './pages/AIRecommendation'
 import ProfileDifference from './pages/ProfileDifference'
 import ThreatIntelligence from './pages/ThreatIntelligence'
 import History from './pages/History'
+import Login from './pages/Login'
 
 type Page =
   | 'landing'
@@ -25,6 +26,7 @@ type Page =
   | 'profile-diff'
   | 'threat-intel'
   | 'history'
+  | 'login'
 
 
 const pageTitles: Record<Page, string> = {
@@ -38,6 +40,7 @@ const pageTitles: Record<Page, string> = {
   'profile-diff': 'Profile Difference',
   'threat-intel': 'Threat Intelligence',
   history: 'Analysis History',
+  login: 'Login',
 }
 
 // Mouse spotlight effect
@@ -75,7 +78,19 @@ export default function App() {
       <MouseSpotlight />
 
       <AnimatePresence mode="wait">
-        {page === 'landing' ? (
+        {page === 'login' ? (
+          <motion.div
+            key="login"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="relative"
+            style={{ zIndex: 10 }}
+          >
+            <Login onBack={() => navigate('landing')} onLogin={() => navigate('dashboard')} />
+          </motion.div>
+        ) : page === 'landing' ? (
           <motion.div
             key="landing"
             initial={{ opacity: 0 }}
@@ -94,6 +109,12 @@ export default function App() {
                 <div className="text-sm font-mono text-cyan" style={{ letterSpacing: '0.15em' }}>IDCLONE.AI</div>
               </div>
               <div className="flex gap-3">
+                <button
+                  onClick={() => navigate('login')}
+                  className="text-sm text-muted hover:text-cyan transition-colors px-4 py-2"
+                >
+                  Login
+                </button>
                 <button
                   onClick={() => navigate('dashboard')}
                   className="text-sm text-muted hover:text-white transition-colors px-4 py-2"
