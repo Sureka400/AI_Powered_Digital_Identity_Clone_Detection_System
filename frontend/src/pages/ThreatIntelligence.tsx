@@ -55,65 +55,6 @@ function ThreatBadge({ level }: { level: string }) {
   return <span className={`${cls} text-xs px-2 py-0.5 rounded-full font-mono`}>{level}</span>
 }
 
-function WorldMapSVG() {
-  const [attacks, setAttacks] = useState<Array<{ id: number; x: number; y: number; tx: number; ty: number }>>([])
-
-  useEffect(() => {
-    const spawn = () => {
-      const srcPoints = [
-        { x: 200, y: 120 }, { x: 350, y: 100 }, { x: 430, y: 130 },
-        { x: 520, y: 110 }, { x: 600, y: 140 }, { x: 250, y: 200 },
-      ]
-      const dstPoints = [
-        { x: 280, y: 160 }, { x: 400, y: 170 }, { x: 490, y: 150 },
-        { x: 320, y: 130 }, { x: 560, y: 130 },
-      ]
-      const src = srcPoints[Math.floor(Math.random() * srcPoints.length)]
-      const dst = dstPoints[Math.floor(Math.random() * dstPoints.length)]
-      const id = Date.now()
-      setAttacks((prev) => [...prev, { id, x: src.x, y: src.y, tx: dst.x, ty: dst.y }])
-      setTimeout(() => {
-        setAttacks((prev) => prev.filter((a) => a.id !== id))
-      }, 2000)
-    }
-
-    const interval = setInterval(spawn, 800)
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <div className="w-full h-48 relative overflow-hidden rounded-xl" style={{ background: 'rgba(0,245,255,0.02)' }}>
-      <svg viewBox="0 0 800 300" className="w-full h-full opacity-40">
-        <path d="M 50 150 Q 100 100 200 120 Q 280 130 320 160 Q 380 180 450 150 Q 520 110 600 130 Q 680 150 750 140" fill="none" stroke="rgba(0,245,255,0.3)" strokeWidth="1" />
-        {[0,1,2,3,4,5,6,7].map((i) => (
-          <line key={i} x1={i * 100} y1="0" x2={i * 100} y2="300" stroke="rgba(0,245,255,0.05)" strokeWidth="0.5" />
-        ))}
-        {[0,1,2,3].map((i) => (
-          <line key={i} x1="0" y1={i * 75} x2="800" y2={i * 75} stroke="rgba(0,245,255,0.05)" strokeWidth="0.5" />
-        ))}
-        {attacks.map((a) => (
-          <g key={a.id}>
-            <line x1={a.x} y1={a.y} x2={a.tx} y2={a.ty} stroke="#FF3D71" strokeWidth="1" strokeOpacity="0.6" strokeDasharray="4 4">
-              <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="0.5s" repeatCount="indefinite" />
-            </line>
-            <circle cx={a.tx} cy={a.ty} r="4" fill="#FF3D71" fillOpacity="0.8">
-              <animate attributeName="r" values="2;8;2" dur="1s" repeatCount="indefinite" />
-              <animate attributeName="fill-opacity" values="1;0;1" dur="1s" repeatCount="indefinite" />
-            </circle>
-          </g>
-        ))}
-        {[{ x: 280, y: 160 }, { x: 400, y: 150 }, { x: 520, y: 130 }].map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="6" fill="none" stroke="#00F5FF" strokeWidth="1" strokeOpacity="0.4">
-            <animate attributeName="r" values="4;12;4" dur={`${2 + i}s`} repeatCount="indefinite" />
-            <animate attributeName="stroke-opacity" values="0.5;0;0.5" dur={`${2 + i}s`} repeatCount="indefinite" />
-          </circle>
-        ))}
-      </svg>
-      <div className="absolute bottom-2 right-2 text-xs font-mono text-muted">LIVE THREAT MAP</div>
-    </div>
-  )
-}
-
 export default function ThreatIntelligence() {
   const [historyData, setHistoryData] = useState<HistoryItem[]>([])
 
@@ -245,24 +186,6 @@ export default function ThreatIntelligence() {
           </motion.div>
         ))}
       </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass rounded-2xl p-5"
-        style={{ border: '1px solid rgba(0,245,255,0.08)' }}
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <Globe size={16} color="#00F5FF" />
-          <h3 className="font-bold" style={{ fontFamily: 'Space Grotesk' }}>Live Threat Map</h3>
-          <div className="flex items-center gap-1.5 ml-auto">
-            <div className="status-dot status-online" />
-            <span className="text-xs font-mono text-success">LIVE</span>
-          </div>
-        </div>
-        <WorldMapSVG />
-      </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <motion.div

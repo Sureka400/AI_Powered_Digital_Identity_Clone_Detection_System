@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import List
 
 
 class ExplainRequest(BaseModel):
@@ -12,4 +11,4 @@ class ExplainRequest(BaseModel):
 
 
 class ExplainResponse(BaseModel):
-    reasons: List[str]
+    reasons: str

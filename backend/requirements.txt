@@ -3,7 +3,9 @@ uvicorn
 python-multipart
 numpy
 pandas
-scikit-learn
+# The persisted fake-profile and spammer classifiers were trained with 1.6.1.
+# Loading them with another version can silently alter predictions.
+scikit-learn==1.6.1
 joblib
 opencv-python
 deepface
@@ -16,3 +18,4 @@ reportlab
 pillow
 pydantic
 aiofiles
+google-genai

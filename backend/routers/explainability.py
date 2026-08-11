@@ -7,7 +7,6 @@ router = APIRouter(
     tags=["Explainable AI"]
 )
 
-
 @router.post("/", response_model=ExplainResponse)
 async def explain_prediction(data: ExplainRequest):
 

@@ -1,15 +1,24 @@
 import { motion } from 'framer-motion'
-import { AlertTriangle, Shield, Users, Eye, Lock, Ban, ChevronRight, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Shield, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import api from '../api/api'
 
 interface InvestigationData {
-  profile?: { prediction: number; result: string; confidence?: number | null; fake_probability?: number | null }
-  spammer?: { prediction: number; result: string; confidence?: number | null; spammer_probability?: number | null }
-  username?: { username_similarity: number; match: boolean }
-  bio?: { bio_similarity: number; match: boolean }
+  profile?: { prediction: number }
+  spammer?: { prediction: number }
+  username?: { username_similarity: number }
+  bio?: { bio_similarity: number }
   face?: { verified: boolean; distance: number; threshold: number } | null
   analyze?: { trust_score: number; status: string; risk: string }
-  original?: { username: string; displayName: string; bio: string; image: string | null }
-  clone?: { username: string; displayName: string; bio: string; image: string | null }
+  original?: { username: string }
+  clone?: { username: string }
+}
+
+interface Recommendation {
+  title: string
+  description: string
+  priority: 'Critical' | 'High' | 'Medium' | 'Low'
+  action: string
 }
 
 interface AIRecommendationProps {
@@ -23,92 +32,52 @@ const priorityBadge = (priority: string) => {
   return 'badge-low'
 }
 
+const priorityColor = (priority: string) => {
+  if (priority === 'Critical') return '#FF3D71'
+  if (priority === 'High') return '#FF9800'
+  if (priority === 'Medium') return '#FFD54F'
+  return '#00FFA3'
+}
+
 export default function AIRecommendation({ data }: AIRecommendationProps) {
   const d: InvestigationData = (data as InvestigationData) || {}
   const trustScore = Math.round(d.analyze?.trust_score ?? 50)
-  const analyzeStatus = d.analyze?.status ?? ''
-  const isClone = analyzeStatus === 'Clone' || analyzeStatus === 'Likely Clone'
   const isSpammer = d.spammer?.prediction === 1
   const isCritical = trustScore < 35
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Build recommendations dynamically based on analysis results
-  const recommendations: Array<{
-    title: string
-    desc: string
-    priority: string
-    risk: string
-    color: string
-    icon: typeof AlertTriangle
-    action: string
-  }> = []
+  useEffect(() => {
+    const loadRecommendations = async () => {
+      setIsLoading(true)
+      setError('')
+      try {
+        const faceSimilarity = d.face ? Math.max(0, (1 - d.face.distance / d.face.threshold) * 100) : 0
+        const response = await api.post('/recommendation/', {
+          status: d.analyze?.status ?? 'Unknown',
+          risk: d.analyze?.risk ?? 'Unknown',
+          trust_score: trustScore,
+          profile_fake: d.profile?.prediction === 1,
+          spammer: isSpammer,
+          username_similarity: d.username?.username_similarity ?? 0,
+          bio_similarity: d.bio?.bio_similarity ?? 0,
+          face_similarity: faceSimilarity,
+          face_verified: d.face?.verified ?? false,
+          original_username: d.original?.username ?? 'Unknown',
+          clone_username: d.clone?.username ?? 'Unknown',
+        })
+        setRecommendations(response.data.recommendations || [])
+      } catch (requestError) {
+        console.error('Unable to generate Gemini recommendations:', requestError)
+        setError('Recommendations could not be generated. Confirm the backend is running and Gemini is configured.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  if (isClone) {
-    recommendations.push({
-      title: 'Report Account',
-      desc: `Immediately report the cloned account "${d.clone?.username ?? 'unknown'}" to the platform using the official reporting mechanism. Include the evidence ID for faster processing.`,
-      priority: 'Critical',
-      risk: 'Extreme',
-      color: '#FF3D71',
-      icon: AlertTriangle,
-      action: 'Report Now',
-    })
-  }
-
-  recommendations.push({
-    title: 'Enable Two-Factor Authentication',
-    desc: 'Enable 2FA on the original account to prevent further unauthorized access attempts. Use hardware keys or authenticator apps.',
-    priority: 'High',
-    risk: 'High',
-    color: '#FF9800',
-    icon: Lock,
-    action: 'Enable 2FA',
-  })
-
-  if (isClone) {
-    recommendations.push({
-      title: 'Inform Followers',
-      desc: 'Publish a notice on the original profile alerting followers that a cloned account exists. Include distinguishing characteristics.',
-      priority: 'High',
-      risk: 'High',
-      color: '#FF9800',
-      icon: Users,
-      action: 'Draft Alert',
-    })
-  }
-
-  recommendations.push({
-    title: 'Monitor Activity',
-    desc: 'Set up automated monitoring for further clone attempts. Track mentions, tags, and impersonation patterns over the next 30 days.',
-    priority: 'Medium',
-    risk: 'Medium',
-    color: '#FFD54F',
-    icon: Eye,
-    action: 'Set Monitor',
-  })
-
-  if (isClone) {
-    recommendations.push({
-      title: 'Block Account',
-      desc: `Block the cloned account "${d.clone?.username ?? 'unknown'}" immediately to limit its ability to interact with your followers and associate with your brand.`,
-      priority: 'Medium',
-      risk: 'Low',
-      color: '#00FFA3',
-      icon: Ban,
-      action: 'Block Account',
-    })
-  }
-
-  if (!isClone && !isSpammer) {
-    recommendations.push({
-      title: 'Maintain Security Hygiene',
-      desc: 'The profile appears genuine. Continue maintaining good security practices including regular password updates and monitoring.',
-      priority: 'Low',
-      risk: 'Low',
-      color: '#00FFA3',
-      icon: ShieldCheck,
-      action: 'Review Tips',
-    })
-  }
+    loadRecommendations()
+  }, [d, isSpammer, trustScore])
 
   const actionCount = recommendations.length
 
@@ -119,83 +88,43 @@ export default function AIRecommendation({ data }: AIRecommendationProps) {
           <div className="w-1 h-6 rounded-full" style={{ background: 'linear-gradient(180deg, #00F5FF, #7B61FF)' }} />
           <h1 className="text-2xl font-bold" style={{ fontFamily: 'Space Grotesk' }}>AI Security Recommendations</h1>
         </div>
-        <p className="text-sm text-muted ml-4">Prioritized action plan generated by Recommendation Engine</p>
+        <p className="text-sm text-muted ml-4">Prioritized action plan generated by Gemini with Google Search grounding</p>
       </motion.div>
 
-      {/* Banner */}
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
         className="glass rounded-2xl p-5 flex items-center gap-4"
-        style={{
-          border: isCritical ? '1px solid rgba(255,61,113,0.2)' : '1px solid rgba(0,255,163,0.2)',
-          background: isCritical ? 'rgba(255,61,113,0.04)' : 'rgba(0,255,163,0.04)',
-        }}
+        style={{ border: isCritical ? '1px solid rgba(255,61,113,0.2)' : '1px solid rgba(0,255,163,0.2)', background: isCritical ? 'rgba(255,61,113,0.04)' : 'rgba(0,255,163,0.04)' }}
       >
         <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: isCritical ? 'rgba(255,61,113,0.1)' : 'rgba(0,255,163,0.1)' }}>
           {isCritical ? <Shield size={22} color="#FF3D71" /> : <ShieldCheck size={22} color="#00FFA3" />}
         </div>
         <div>
-          <div className="font-bold text-sm mb-0.5" style={{ fontFamily: 'Space Grotesk', color: isCritical ? '#FF3D71' : '#00FFA3' }}>
-            {isCritical ? 'CRITICAL THREAT DETECTED' : 'PROFILE APPEARS SAFE'}
-          </div>
-          <p className="text-xs text-muted">
-            {actionCount} security {actionCount === 1 ? 'action' : 'actions'} recommended.
-            {isCritical ? ' Immediate response required to protect identity integrity.' : ' Continue monitoring for changes.'}
-          </p>
-        </div>
-        <div className="ml-auto text-right hidden md:block">
-          <div className="text-2xl font-bold font-mono" style={{ color: isCritical ? '#FF3D71' : '#00FFA3' }}>{actionCount}</div>
-          <div className="text-xs text-muted">Actions</div>
+          <div className="font-bold text-sm mb-0.5" style={{ fontFamily: 'Space Grotesk', color: isCritical ? '#FF3D71' : '#00FFA3' }}>{isCritical ? 'CRITICAL THREAT DETECTED' : 'PROFILE REVIEW IN PROGRESS'}</div>
+          <p className="text-xs text-muted">{isLoading ? 'Generating a tailored security plan…' : `${actionCount} security ${actionCount === 1 ? 'action' : 'actions'} recommended.`}</p>
         </div>
       </motion.div>
 
-      {/* Recommendations */}
       <div className="space-y-3">
-        {recommendations.map((rec, i) => (
-          <motion.div
-            key={rec.title}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 + i * 0.1 }}
-            whileHover={{ x: 4 }}
-            className="glass rounded-2xl p-5"
-            style={{ border: `1px solid ${rec.color}20` }}
-          >
-            <div className="flex items-start gap-4">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: `${rec.color}10`, border: `1px solid ${rec.color}30` }}
-              >
-                <rec.icon size={20} color={rec.color} />
-              </div>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2 flex-wrap">
-                  <h3 className="font-bold" style={{ fontFamily: 'Space Grotesk', color: rec.color }}>{rec.title}</h3>
-                  <span className={`${priorityBadge(rec.priority)} text-xs px-2 py-0.5 rounded-full font-mono`}>{rec.priority}</span>
-                  <span className="text-xs text-muted font-mono">Risk: {rec.risk}</span>
+        {isLoading && <div className="glass rounded-2xl p-5 text-sm text-muted">Generating Gemini recommendations…</div>}
+        {error && <div className="glass rounded-2xl p-5 text-sm text-danger">{error}</div>}
+        {recommendations.map((rec, i) => {
+          const color = priorityColor(rec.priority)
+          return (
+            <motion.div key={`${rec.title}-${i}`} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.1 }} whileHover={{ x: 4 }} className="glass rounded-2xl p-5" style={{ border: `1px solid ${color}20` }}>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}10`, border: `1px solid ${color}30` }}><AlertTriangle size={20} color={color} /></div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap"><h3 className="font-bold" style={{ fontFamily: 'Space Grotesk', color }}>{rec.title}</h3><span className={`${priorityBadge(rec.priority)} text-xs px-2 py-0.5 rounded-full font-mono`}>{rec.priority}</span></div>
+                  <p className="text-sm text-muted leading-relaxed">{rec.description}</p>
                 </div>
-                <p className="text-sm text-muted leading-relaxed">{rec.desc}</p>
+                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" style={{ background: `${color}15`, border: `1px solid ${color}40`, color, fontFamily: 'Space Grotesk' }}>
+                  {rec.action}<ChevronRight size={12} />
+                </motion.button>
               </div>
-
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
-                className="shrink-0 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5"
-                style={{
-                  background: `${rec.color}15`,
-                  border: `1px solid ${rec.color}40`,
-                  color: rec.color,
-                  fontFamily: 'Space Grotesk',
-                }}
-              >
-                {rec.action}
-                <ChevronRight size={12} />
-              </motion.button>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          )
+        })}
       </div>
     </div>
   )
