@@ -10,10 +10,12 @@ router = APIRouter(
 )
 
 
-@router.post("/")
+@router.post("")
 async def generate_report(data: ReportRequest):
 
-    filename = ReportService.generate(data.model_dump())
+    # Omit missing optional values so the PDF can use its clear "Not available"
+    # labels instead of rendering Python's None value.
+    filename = ReportService.generate(data.model_dump(exclude_none=True))
     return FileResponse(
         path=filename,
         media_type="application/pdf",

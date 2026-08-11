@@ -3,7 +3,9 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   Tooltip
 } from 'recharts'
-import { AlertTriangle, CheckCircle, Eye, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Download, Eye, ShieldCheck } from 'lucide-react'
+import { useState } from 'react'
+import api from '../api/api'
 
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history'
 
@@ -57,6 +59,8 @@ export default function ResultDashboard({
 }: ResultDashboardProps) {
 
   const d: InvestigationData = data || {}
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   const trustScore = Math.round(d.analyze?.trust_score ?? 50)
   const cloneProbability = Math.max(0, 100 - trustScore)
   const faceVerified = d.face?.verified ?? false
@@ -100,6 +104,53 @@ export default function ResultDashboard({
   const behaviourScore = d.spammer
     ? Math.round(d.spammer.spammer_probability ?? d.spammer.confidence ?? (d.spammer.prediction === 1 ? 75 : 25))
     : 0
+
+  const downloadReport = async () => {
+    setIsDownloading(true)
+    setDownloadError('')
+    try {
+      const safeId = `INV-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`
+      const response = await api.post('/report', {
+        id: safeId,
+        profile_name: d.original?.username,
+        original_username: d.original?.username,
+        clone_username: d.clone?.username,
+        trust_score: trustScore,
+        clone_probability: cloneProbability,
+        face_similarity: faceSimilarity,
+        username_similarity: usernameSimilarity,
+        bio_similarity: bioSimilarity,
+        face_verified: faceVerified,
+        decision: decision,
+        risk_level: threatLevel,
+        status: analyzeStatus || decision,
+        recommendation: isCritical
+          ? 'Immediately preserve evidence, report the suspected account, and complete a manual identity review.'
+          : threatLevel === 'High' || threatLevel === 'Medium'
+            ? 'Verify the profile through a trusted channel and monitor for further impersonation signals.'
+            : 'No urgent action is required; retain this report and continue routine monitoring.',
+      }, { responseType: 'arraybuffer' })
+
+      const bytes = new Uint8Array(response.data)
+      if (bytes.length < 4 || ![37, 80, 68, 70].every((value, index) => bytes[index] === value)) {
+        throw new Error('The server did not return a valid PDF.')
+      }
+
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${safeId}-clone-detection-report.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      console.error('PDF report download failed:', error)
+      setDownloadError('Could not generate the PDF report. Please try again.')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   const radarData = [
     { subject: "Face", A: faceSimilarity, fullMark: 100 },
@@ -217,6 +268,14 @@ export default function ResultDashboard({
         <div className="flex gap-2">
           <motion.button
             whileHover={{ scale: 1.04 }}
+            onClick={downloadReport}
+            disabled={isDownloading}
+            className="btn-holographic px-4 py-2 rounded-xl text-xs flex items-center gap-2 disabled:opacity-50"
+          >
+            <Download size={14} /> {isDownloading ? 'Preparing PDF...' : 'Download PDF'}
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
             onClick={() => onNavigate('explainable', data)}
             className="btn-holographic px-4 py-2 rounded-xl text-xs flex items-center gap-2"
           >
@@ -231,6 +290,12 @@ export default function ResultDashboard({
           </motion.button>
         </div>
       </motion.div>
+
+      {downloadError && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ color: '#FFB4C5', background: 'rgba(255,61,113,0.12)', border: '1px solid rgba(255,61,113,0.35)' }}>
+          {downloadError}
+        </div>
+      )}
 
       {/* Profile preview cards */}
       <motion.div

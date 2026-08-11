@@ -55,6 +55,8 @@ export default function History() {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'clone' | 'genuine' | 'suspicious'>('all')
   const [selectedRow, setSelectedRow] = useState<HistoryRow | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState('')
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -80,6 +82,8 @@ export default function History() {
   }
 
   const downloadReport = async (row: HistoryRow) => {
+    setDownloadingId(row.id)
+    setDownloadError('')
     try {
       const payload = {
         // Backwards-compatible fields per ReportRequest
@@ -96,12 +100,20 @@ export default function History() {
         clone_username: row.clone_username,
         face_similarity: row.face_similarity,
         bio_similarity: row.bio_similarity,
+        username_similarity: row.username_similarity,
+        clone_probability: 100 - (row.trust_score ?? 0),
+        face_verified: row.face_verified,
         decision: row.decision || row.decision_label || row.risk_level || 'Unknown',
+        risk_level: row.risk_level,
       }
 
       // Request PDF as arraybuffer to reliably build a blob
       const resp = await api.post('/report', payload, { responseType: 'arraybuffer' })
       const blob = new Blob([resp.data], { type: 'application/pdf' })
+
+      if (blob.size === 0 || !new Uint8Array(resp.data).slice(0, 4).every((byte, index) => byte === [37, 80, 68, 70][index])) {
+        throw new Error('The server did not return a valid PDF file.')
+      }
 
       // Try to get filename from response headers
       let filename = `${row.id}.pdf`
@@ -118,9 +130,12 @@ export default function History() {
       document.body.appendChild(a)
       a.click()
       a.remove()
-      window.URL.revokeObjectURL(url)
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
     } catch (e) {
       console.error('Report download failed', e)
+      setDownloadError('Could not generate the report. Please try again.')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -145,6 +160,11 @@ export default function History() {
 
   return (
     <div className="space-y-6">
+      {downloadError && (
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ color: '#FFB4C5', background: 'rgba(255,61,113,0.12)', border: '1px solid rgba(255,61,113,0.35)' }}>
+          {downloadError}
+        </div>
+      )}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -238,8 +258,8 @@ export default function History() {
                 <button onClick={() => viewDetails(row)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="View Details">
                   <Eye size={13} color="#00F5FF" />
                 </button>
-                <button onClick={() => downloadReport(row)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Download Report">
-                  <Download size={13} color="#94A3B8" />
+                <button onClick={() => downloadReport(row)} disabled={downloadingId === row.id} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50" title="Download Report">
+                  <Download size={13} color={downloadingId === row.id ? '#00F5FF' : '#94A3B8'} />
                 </button>
               </div>
             </motion.div>
@@ -257,7 +277,9 @@ export default function History() {
                 <div className="text-lg font-semibold">{selectedRow.id} · {selectedRow.original_username} vs {selectedRow.clone_username}</div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => downloadReport(selectedRow)} className="px-3 py-2 rounded-lg" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>Download PDF</button>
+                <button onClick={() => downloadReport(selectedRow)} disabled={downloadingId === selectedRow.id} className="px-3 py-2 rounded-lg disabled:opacity-50" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+                  {downloadingId === selectedRow.id ? 'Generating PDF...' : 'Download PDF'}
+                </button>
                 <button onClick={closeModal} className="px-3 py-2 rounded-lg">Close</button>
               </div>
             </div>
