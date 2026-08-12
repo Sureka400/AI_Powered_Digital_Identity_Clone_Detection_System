@@ -1,21 +1,44 @@
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
+
 numpy
 pandas
-# The persisted fake-profile and spammer classifiers were trained with 1.6.1.
-# Loading them with another version can silently alter predictions.
+
+# ML model compatibility
 scikit-learn==1.6.1
 joblib
-opencv-python
+
+# Face verification
+opencv-python==4.10.0.84
 deepface
 tensorflow
+pillow
+
+# Similarity / NLP
 rapidfuzz
 sentence-transformers
+
+# Environment
 python-dotenv
+
+# MongoDB
 pymongo[srv]
+
+# PDF reports
 reportlab
-pillow
-pydantic
 aiofiles
+
+# Validation
+pydantic
+
+# Google Gemini (if still used)
 google-genai
+
+# Groq AI
+groq
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
