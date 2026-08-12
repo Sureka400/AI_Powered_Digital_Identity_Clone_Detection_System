@@ -107,11 +107,12 @@ export default function History() {
         risk_level: row.risk_level,
       }
 
-      // Request PDF as arraybuffer to reliably build a blob
-      const resp = await api.post('/report', payload, { responseType: 'arraybuffer' })
-      const blob = new Blob([resp.data], { type: 'application/pdf' })
+      // Request a PDF Blob so Edge receives a complete application/pdf payload.
+      const resp = await api.post('/report', payload, { responseType: 'blob' })
+      const blob = resp.data as Blob
+      const bytes = new Uint8Array(await blob.arrayBuffer())
 
-      if (blob.size === 0 || !new Uint8Array(resp.data).slice(0, 4).every((byte, index) => byte === [37, 80, 68, 70][index])) {
+      if (blob.size === 0 || !bytes.slice(0, 4).every((byte, index) => byte === [37, 80, 68, 70][index])) {
         throw new Error('The server did not return a valid PDF file.')
       }
 

@@ -11,6 +11,7 @@ from routers.explainability import router as explain_router
 from routers.recommendation import router as recommendation_router
 from routers.history import router as history_router
 from routers.report import router as report_router
+from routers.auth import router as auth_router
 
 app = FastAPI(
     title="AI Clone Detection API",
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Content-Type"],
 )
 
 app.include_router(profile_router)
@@ -36,6 +38,7 @@ app.include_router(explain_router)
 app.include_router(recommendation_router)
 app.include_router(history_router)
 app.include_router(report_router)
+app.include_router(auth_router)
 
 
 @app.get("/", tags=["Home"])

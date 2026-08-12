@@ -57,27 +57,20 @@ class ReportService:
         ).lower()
         trust = ReportService._number(report.get("trust_score"), 50)
 
-        if "critical" in decision or trust < 35:
+        # Keep the report's visual language aligned with the final analysis
+        # result: green for genuine, amber for suspicious, and red for clones.
+        if any(word in decision for word in ("clone", "fake", "critical", "high")) or trust < 50:
             return {
-                "level": "CRITICAL",
-                "headline": "Potential identity clone detected",
-                "summary": "The combined signals indicate a material impersonation risk. Treat this account as unsafe until a manual review is complete.",
-                "action": "Restrict contact with the suspected profile, preserve evidence, and escalate the case to the relevant platform or security team.",
+                "level": "CLONE DETECTED",
+                "headline": "Identity clone detected",
+                "summary": "The combined signals indicate a likely impersonation attempt. Treat the suspected profile as unsafe until a manual review is complete.",
+                "action": "Preserve the evidence, report the suspected profile, and verify the identity through a trusted channel before further engagement.",
                 "color": "#C6284E",
                 "pale": "#FDEEF2",
             }
-        if any(word in decision for word in ("clone", "fake", "high")) or trust < 55:
-            return {
-                "level": "HIGH",
-                "headline": "High-risk identity clone indicators found",
-                "summary": "The available evidence indicates a likely impersonation attempt. A manual review and timely containment are recommended.",
-                "action": "Preserve the evidence, report the suspected profile, and verify the identity through a trusted channel before further engagement.",
-                "color": "#E05A2A",
-                "pale": "#FFF0EA",
-            }
         if any(word in decision for word in ("suspicious", "moderate", "medium")) or trust < 75:
             return {
-                "level": "MEDIUM",
+                "level": "SUSPICIOUS",
                 "headline": "Suspicious identity signals found",
                 "summary": "Some profile attributes resemble the original account, but the available evidence is not conclusive on its own.",
                 "action": "Verify the account through a trusted channel, monitor for changes, and collect additional evidence before taking enforcement action.",
@@ -85,8 +78,8 @@ class ReportService:
                 "pale": "#FFF7E5",
             }
         return {
-            "level": "LOW",
-            "headline": "No strong clone indicators found",
+            "level": "GENUINE",
+            "headline": "Profile appears genuine",
             "summary": "The current analysis indicates a low likelihood of identity cloning. Continue normal monitoring as new information becomes available.",
             "action": "No urgent action is required. Retain this report for audit purposes and re-run the analysis if the profile changes.",
             "color": "#087A5A",

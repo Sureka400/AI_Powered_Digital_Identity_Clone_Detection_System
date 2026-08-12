@@ -15,6 +15,22 @@ import ThreatIntelligence from './pages/ThreatIntelligence'
 import History from './pages/History'
 import Login from './pages/Login'
 
+export interface SignedInUser {
+  name: string
+  email: string
+}
+
+export interface AppNotification {
+  id: string
+  title: string
+  message: string
+  createdAt: string
+  read: boolean
+  severity: 'danger' | 'info'
+}
+
+export type Theme = 'dark' | 'light'
+
 type Page =
   | 'landing'
   | 'dashboard'
@@ -43,6 +59,22 @@ const pageTitles: Record<Page, string> = {
   login: 'Login',
 }
 
+const readStoredUser = (): SignedInUser | null => {
+  const savedUser = localStorage.getItem('idclone_user') || sessionStorage.getItem('idclone_user')
+  if (savedUser) {
+    try { return JSON.parse(savedUser) as SignedInUser } catch { /* fall through */ }
+  }
+  const email = localStorage.getItem('idclone_user_email') || sessionStorage.getItem('idclone_user_email')
+  return email ? { email, name: email.split('@')[0] } : null
+}
+
+const readStoredNotifications = (): AppNotification[] => {
+  try {
+    const value = JSON.parse(localStorage.getItem('idclone_notifications') || '[]')
+    return Array.isArray(value) ? value : []
+  } catch { return [] }
+}
+
 // Mouse spotlight effect
 function MouseSpotlight() {
   const [pos, setPos] = useState({ x: 0, y: 0 })
@@ -63,14 +95,67 @@ function MouseSpotlight() {
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('landing')
+  const [page, setPage] = useState<Page>(() => readStoredUser() ? 'dashboard' : 'landing')
   const [investigationData, setInvestigationData] = useState<unknown>(null)
+  const [theme, setTheme] = useState<Theme>(() => localStorage.getItem('idclone_theme') === 'light' ? 'light' : 'dark')
+  const [user, setUser] = useState<SignedInUser | null>(readStoredUser)
+  const [notifications, setNotifications] = useState<AppNotification[]>(readStoredNotifications)
+
+  const handleLogin = (signedInUser: SignedInUser, remember = true) => {
+    const storage = remember ? localStorage : sessionStorage
+    storage.setItem('idclone_user', JSON.stringify(signedInUser))
+    storage.setItem('idclone_user_email', signedInUser.email)
+    if (remember) {
+      sessionStorage.removeItem('idclone_user')
+      sessionStorage.removeItem('idclone_user_email')
+    } else {
+      localStorage.removeItem('idclone_user')
+      localStorage.removeItem('idclone_user_email')
+    }
+    setUser(signedInUser)
+    navigate('dashboard')
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('idclone_user')
+    sessionStorage.removeItem('idclone_user_email')
+    localStorage.removeItem('idclone_user')
+    localStorage.removeItem('idclone_user_email')
+    setUser(null)
+    navigate('landing')
+  }
+
+  const handleThemeChange = (nextTheme: Theme) => {
+    localStorage.setItem('idclone_theme', nextTheme)
+    setTheme(nextTheme)
+  }
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
 
   const navigate = (nextPage: Page, data?: unknown) => {
-    if (data !== undefined) setInvestigationData(data)
+    if (data !== undefined) {
+      setInvestigationData(data)
+      const result = data as { analyze?: { status?: string; risk?: string }; clone?: { username?: string } }
+      if (result.analyze?.status === 'Clone Detected') {
+        setNotifications((current) => [{
+          id: `clone-${Date.now()}`,
+          title: 'Clone detected',
+          message: `${result.clone?.username ? `@${result.clone.username}` : 'The investigated profile'} was flagged as a high-risk clone.`,
+          createdAt: new Date().toISOString(),
+          read: false,
+          severity: 'danger',
+        }, ...current].slice(0, 30))
+      }
+    }
     setPage(nextPage)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  useEffect(() => {
+    localStorage.setItem('idclone_notifications', JSON.stringify(notifications))
+  }, [notifications])
 
   return (
     <div className="min-h-screen noise" style={{ background: 'var(--bg-primary)' }}>
@@ -88,7 +173,7 @@ export default function App() {
             className="relative"
             style={{ zIndex: 10 }}
           >
-            <Login onBack={() => navigate('landing')} onLogin={() => navigate('dashboard')} />
+            <Login onBack={() => navigate('landing')} onLogin={handleLogin} />
           </motion.div>
         ) : page === 'landing' ? (
           <motion.div
@@ -145,7 +230,15 @@ export default function App() {
           >
             <Sidebar current={page} onNavigate={navigate} />
             <div className="flex-1 ml-64">
-              <Navbar />
+              <Navbar
+                user={user}
+                onLogout={handleLogout}
+                theme={theme}
+                onThemeChange={handleThemeChange}
+                notifications={notifications}
+                onMarkNotificationsRead={() => setNotifications((items) => items.map((item) => ({ ...item, read: true })))}
+                onClearNotifications={() => setNotifications([])}
+              />
               <main className="pt-16 min-h-screen">
                 <div className="p-6 lg:p-8">
                   {/* Breadcrumb */}
@@ -179,7 +272,7 @@ export default function App() {
                       transition={{ duration: 0.3, ease: 'easeOut' }}
                     >
                       {page === 'dashboard' && <Dashboard />}
-                      {page === 'investigation' && <NewInvestigation onNavigate={navigate} />}
+                      {page === 'investigation' && <NewInvestigation onNavigate={navigate} alertEmail={user?.email ?? null} />}
                       {page === 'ai-room' && <AIInvestigationRoom onNavigate={navigate} investigationData={investigationData} />}
                       {page === 'results' && <ResultDashboard onNavigate={navigate} data={investigationData} />}
                       {page === 'explainable' && <ExplainableAI data={investigationData} />}

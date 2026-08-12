@@ -384,9 +384,10 @@ function ProfileCard({ title, color, data, onChange }: {
 
 interface NewInvestigationProps {
   onNavigate: (page: Page, data?: unknown) => void
+  alertEmail: string | null
 }
 
-export default function NewInvestigation({ onNavigate }: NewInvestigationProps) {
+export default function NewInvestigation({ onNavigate, alertEmail }: NewInvestigationProps) {
   const [original, setOriginal] = useState<ProfileData>(defaultProfile())
   const [clone, setClone] = useState<ProfileData>(defaultProfile())
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -526,6 +527,7 @@ export default function NewInvestigation({ onNavigate }: NewInvestigationProps) 
         face_verified: faceData ? faceData.verified : false,
         original_username: original.username,
         clone_username: clone.username,
+        alert_email: alertEmail || undefined,
       });
       analyzeData = analyzeResponse.data;
     } catch (e) {

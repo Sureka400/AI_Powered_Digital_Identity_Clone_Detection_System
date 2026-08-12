@@ -15,7 +15,7 @@ interface InvestigationData {
   username?: { username_similarity: number; match: boolean }
   bio?: { bio_similarity: number; match: boolean }
   face?: { verified: boolean; distance: number; threshold: number } | null
-  analyze?: { trust_score: number; status: string; risk: string }
+  analyze?: { trust_score: number; status: string; risk: string; alert_sent?: boolean; alert_error?: string | null }
   original?: { username: string; displayName: string; bio: string; image: string | null }
   clone?: { username: string; displayName: string; bio: string; image: string | null }
 }
@@ -67,6 +67,8 @@ export default function ResultDashboard({
   const analyzeStatus = d.analyze?.status ?? ''
   const isClone = analyzeStatus === 'Clone' || analyzeStatus === 'Likely Clone' || analyzeStatus === 'Clone Detected'
   const isSpammer = d.spammer?.prediction === 1
+  const alertSent = d.analyze?.alert_sent === true
+  const alertError = d.analyze?.alert_error
 
   // Threat level based on trust score
   let threatLevel = 'Low'
@@ -129,17 +131,23 @@ export default function ResultDashboard({
           : threatLevel === 'High' || threatLevel === 'Medium'
             ? 'Verify the profile through a trusted channel and monitor for further impersonation signals.'
             : 'No urgent action is required; retain this report and continue routine monitoring.',
-      }, { responseType: 'arraybuffer' })
+      }, { responseType: 'blob' })
 
-      const bytes = new Uint8Array(response.data)
+      const blob = response.data as Blob
+      const bytes = new Uint8Array(await blob.arrayBuffer())
       if (bytes.length < 4 || ![37, 80, 68, 70].every((value, index) => bytes[index] === value)) {
         throw new Error('The server did not return a valid PDF.')
       }
 
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+      const contentDisposition = response.headers['content-disposition']
+      const filenameMatch = contentDisposition && /filename\*?=(?:UTF-8'')?"?([^";\n]+)/i.exec(contentDisposition)
+      const filename = filenameMatch?.[1]
+        ? decodeURIComponent(filenameMatch[1].replace(/"/g, ''))
+        : `Digital_Identity_Security_Report_${safeId}.pdf`
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
       const link = document.createElement('a')
       link.href = url
-      link.download = `${safeId}-clone-detection-report.pdf`
+      link.download = filename
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -294,6 +302,18 @@ export default function ResultDashboard({
       {downloadError && (
         <div className="rounded-xl px-4 py-3 text-sm" style={{ color: '#FFB4C5', background: 'rgba(255,61,113,0.12)', border: '1px solid rgba(255,61,113,0.35)' }}>
           {downloadError}
+        </div>
+      )}
+
+      {isClone && alertSent && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ color: '#00FFA3', background: 'rgba(0,255,163,0.1)', border: '1px solid rgba(0,255,163,0.3)' }}>
+          Clone alert email sent to the signed-in analyst.
+        </div>
+      )}
+
+      {isClone && alertError && (
+        <div className="rounded-xl px-4 py-3 text-sm" style={{ color: '#FFB4C5', background: 'rgba(255,61,113,0.12)', border: '1px solid rgba(255,61,113,0.35)' }}>
+          {alertError}
         </div>
       )}
 
