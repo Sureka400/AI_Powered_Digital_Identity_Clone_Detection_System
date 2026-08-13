@@ -528,6 +528,7 @@ export default function NewInvestigation({ onNavigate, alertEmail }: NewInvestig
         original_username: original.username,
         clone_username: clone.username,
         alert_email: alertEmail || undefined,
+        analyst_email: alertEmail || undefined,
       });
       analyzeData = analyzeResponse.data;
     } catch (e) {

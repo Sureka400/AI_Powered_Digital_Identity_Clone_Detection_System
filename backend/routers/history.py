@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from services.history_service import HistoryService
 
 router = APIRouter(
@@ -8,9 +8,9 @@ router = APIRouter(
 
 
 @router.get("/")
-async def get_history():
+async def get_history(analyst_email: str | None = Query(default=None)):
 
-    history = HistoryService.get()
+    history = HistoryService.get(analyst_email=analyst_email)
 
     return {
         "count": len(history),

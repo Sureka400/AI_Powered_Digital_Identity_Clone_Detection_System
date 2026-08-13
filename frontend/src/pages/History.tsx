@@ -49,7 +49,11 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export default function History() {
+interface HistoryProps {
+  analystEmail: string | null
+}
+
+export default function History({ analystEmail }: HistoryProps) {
   const [historyData, setHistoryData] = useState<HistoryRow[]>([])
   const [search, setSearch] = useState('')
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'clone' | 'genuine' | 'suspicious'>('all')
@@ -60,15 +64,19 @@ export default function History() {
 
   useEffect(() => {
     const fetchHistory = async () => {
+      if (!analystEmail) {
+        setHistoryData([])
+        return
+      }
       try {
-        const response = await api.get('/history')
+        const response = await api.get('/history', { params: { analyst_email: analystEmail } })
         setHistoryData(response.data.history || [])
       } catch (error) {
         console.error('Unable to load history:', error)
       }
     }
     fetchHistory()
-  }, [])
+  }, [analystEmail])
 
   // Handlers for view and download
   const viewDetails = (row: HistoryRow) => {

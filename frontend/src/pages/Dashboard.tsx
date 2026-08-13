@@ -62,14 +62,22 @@ function ThreatBadge({ level }: { level: string }) {
   )
 }
 
-export default function Dashboard() {
+interface DashboardProps {
+  analystEmail: string | null
+}
+
+export default function Dashboard({ analystEmail }: DashboardProps) {
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'All' | 'Genuine' | 'Suspicious' | 'Clone Detected'>('All')
 
   useEffect(() => {
     const fetchHistory = async () => {
+      if (!analystEmail) {
+        setHistoryItems([])
+        return
+      }
       try {
-        const response = await api.get('/history')
+        const response = await api.get('/history', { params: { analyst_email: analystEmail } })
         setHistoryItems(response.data.history || [])
       } catch (error) {
         console.error('Unable to load history data:', error)
@@ -77,7 +85,7 @@ export default function Dashboard() {
     }
 
     fetchHistory()
-  }, [])
+  }, [analystEmail])
 
   const parseTimestamp = (value: string | undefined) => {
     if (!value) return null

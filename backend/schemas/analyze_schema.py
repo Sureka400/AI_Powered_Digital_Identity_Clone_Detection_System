@@ -14,6 +14,7 @@ class AnalyzeRequest(BaseModel):
     clone_username: Optional[str] = None
     # The signed-in analyst's email, supplied by the frontend session.
     alert_email: Optional[str] = None
+    analyst_email: Optional[str] = None
 
 
 class AnalyzeResponse(BaseModel):

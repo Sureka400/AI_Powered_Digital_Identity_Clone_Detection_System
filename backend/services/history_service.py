@@ -9,6 +9,10 @@ class HistoryService:
     FILE = "history/history.json"
 
     @staticmethod
+    def _normalize_email(email):
+        return email.strip().lower() if isinstance(email, str) and email.strip() else None
+
+    @staticmethod
     def save(data):
         if history_collection is not None:
             history_collection.insert_one(data)
@@ -32,9 +36,11 @@ class HistoryService:
 
 
     @staticmethod
-    def get():
+    def get(analyst_email=None):
+        analyst_email = HistoryService._normalize_email(analyst_email)
         if history_collection is not None:
-            results = list(history_collection.find({}, {"_id": 0}).sort("timestamp", -1))
+            query = {"analyst_email": analyst_email} if analyst_email else {}
+            results = list(history_collection.find(query, {"_id": 0}).sort("timestamp", -1))
             return results
 
         if not os.path.exists(HistoryService.FILE):
@@ -42,7 +48,13 @@ class HistoryService:
 
         try:
             with open(HistoryService.FILE, "r") as f:
-                return json.load(f)
+                history = json.load(f)
+                if analyst_email:
+                    return [
+                        item for item in history
+                        if HistoryService._normalize_email(item.get("analyst_email")) == analyst_email
+                    ]
+                return history
 
         except json.JSONDecodeError:
             return []

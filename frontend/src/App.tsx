@@ -201,14 +201,14 @@ export default function App() {
                   Login
                 </button>
                 <button
-                  onClick={() => navigate('dashboard')}
+                  onClick={() => navigate(user ? 'dashboard' : 'login')}
                   className="text-sm text-muted hover:text-white transition-colors px-4 py-2"
                 >
                   Dashboard
                 </button>
                 <motion.button
                   whileHover={{ scale: 1.04 }}
-                  onClick={() => navigate('investigation')}
+                  onClick={() => navigate(user ? 'investigation' : 'login')}
                   className="btn-liquid px-5 py-2 rounded-xl text-xs font-bold"
                   style={{ fontFamily: 'Space Grotesk' }}
                 >
@@ -271,7 +271,7 @@ export default function App() {
                       exit={{ opacity: 0, y: -8 }}
                       transition={{ duration: 0.3, ease: 'easeOut' }}
                     >
-                      {page === 'dashboard' && <Dashboard />}
+                      {page === 'dashboard' && <Dashboard analystEmail={user?.email ?? null} />}
                       {page === 'investigation' && <NewInvestigation onNavigate={navigate} alertEmail={user?.email ?? null} />}
                       {page === 'ai-room' && <AIInvestigationRoom onNavigate={navigate} investigationData={investigationData} />}
                       {page === 'results' && <ResultDashboard onNavigate={navigate} data={investigationData} />}
@@ -279,7 +279,7 @@ export default function App() {
                       {page === 'recommendations' && <AIRecommendation data={investigationData} />}
                       {page === 'profile-diff' && <ProfileDifference data={investigationData} />}
                       {page === 'threat-intel' && <ThreatIntelligence />}
-                      {page === 'history' && <History />}
+                      {page === 'history' && <History analystEmail={user?.email ?? null} />}
                     </motion.div>
                   </AnimatePresence>
                 </div>

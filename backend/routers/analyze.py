@@ -21,6 +21,12 @@ def is_valid_email(value: str | None) -> bool:
     return address == value and "@" in address and "." in address.rsplit("@", 1)[-1]
 
 
+def normalize_email(value: str | None) -> str | None:
+    if not is_valid_email(value):
+        return None
+    return value.strip().lower()
+
+
 @router.post("/", response_model=AnalyzeResponse)
 async def analyze_profile(data: AnalyzeRequest):
 
@@ -37,6 +43,7 @@ async def analyze_profile(data: AnalyzeRequest):
     history_entry = {
         "id": datetime.now().strftime("INV-%Y%m%d%H%M%S"),
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "analyst_email": normalize_email(data.analyst_email or data.alert_email),
         "original_username": data.original_username or "original",
         "clone_username": data.clone_username or "clone",
         "profile_fake": data.profile_fake,
