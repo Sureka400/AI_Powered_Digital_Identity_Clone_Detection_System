@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { Play, ChevronRight, Shield, Eye, Zap, Globe } from 'lucide-react'
+import api from '../api/api'
 
 type Page = 'landing' | 'dashboard' | 'investigation' | 'ai-room' | 'results' | 'explainable' | 'recommendations' | 'profile-diff' | 'threat-intel' | 'history'
 
@@ -8,29 +9,33 @@ interface LandingProps {
   onNavigate: (page: Page) => void
 }
 
-function AnimatedCounter({ target, suffix = '', duration = 2000 }: { target: number; suffix?: string; duration?: number }) {
+function AnimatedCounter({ target, suffix = '', duration = 1200 }: { target: number; suffix?: string; duration?: number }) {
   const [count, setCount] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
-  const started = useRef(false)
+  const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !started.current) {
-        started.current = true
-        const start = Date.now()
-        const tick = () => {
-          const elapsed = Date.now() - start
-          const progress = Math.min(elapsed / duration, 1)
-          const ease = 1 - Math.pow(1 - progress, 3)
-          setCount(Math.round(ease * target))
-          if (progress < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-      }
+      if (entry.isIntersecting) setIsVisible(true)
     }, { threshold: 0.5 })
     if (ref.current) obs.observe(ref.current)
     return () => obs.disconnect()
-  }, [target, duration])
+  }, [])
+
+  useEffect(() => {
+    if (!isVisible) return
+    const start = Date.now()
+    let frame = 0
+    const tick = () => {
+      const elapsed = Date.now() - start
+      const progress = Math.min(elapsed / duration, 1)
+      const ease = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.round(ease * target))
+      if (progress < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, duration, isVisible])
 
   return <div ref={ref} className="counter">{count.toLocaleString()}{suffix}</div>
 }
@@ -173,17 +178,46 @@ function EarthCanvas() {
   return <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
 }
 
-const stats = [
-  { label: 'Profiles Scanned', value: 2847391, suffix: '', icon: Eye },
-  { label: 'Detection Accuracy', value: 98, suffix: '%', icon: Shield },
-  { label: "Today's Scans", value: 12483, suffix: '', icon: Zap },
-  { label: 'Threats Prevented', value: 4291, suffix: '', icon: Globe },
-]
+interface HistoryItem {
+  timestamp?: string
+  date?: string
+  trust_score?: number
+  decision?: string
+  decision_label?: string
+  risk_level?: string
+}
 
 export default function Landing({ onNavigate }: LandingProps) {
   const { scrollY } = useScroll()
   const y = useTransform(scrollY, [0, 400], [0, 100])
   const opacity = useTransform(scrollY, [0, 300], [1, 0])
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
+
+  useEffect(() => {
+    api.get('/history')
+      .then((response) => setHistoryItems(response.data.history || []))
+      .catch((error) => console.error('Unable to load landing page statistics:', error))
+  }, [])
+
+  const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const parseDate = (value?: string) => value ? new Date(value.replace(' ', 'T')) : null
+  const isClone = (item: HistoryItem) => {
+    const status = item.decision || item.decision_label || item.risk_level || ''
+    return status === 'Clone' || status === 'Likely Clone' || status === 'Clone Detected'
+  }
+  const totalScans = historyItems.length
+  const clonesDetected = historyItems.filter(isClone).length
+  const scansToday = historyItems.filter((item) => {
+    const timestamp = parseDate(item.timestamp || item.date)
+    return timestamp && !Number.isNaN(timestamp.getTime()) && localDateKey(timestamp) === localDateKey(new Date())
+  }).length
+  const cloneRate = totalScans ? Math.round((clonesDetected / totalScans) * 100) : 0
+  const stats = [
+    { label: 'Profiles Scanned', value: totalScans, suffix: '', icon: Eye },
+    { label: 'Clone Detection Rate', value: cloneRate, suffix: '%', icon: Shield },
+    { label: "Today's Scans", value: scansToday, suffix: '', icon: Zap },
+    { label: 'Clones Detected', value: clonesDetected, suffix: '', icon: Globe },
+  ]
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>

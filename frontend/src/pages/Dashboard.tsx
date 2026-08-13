@@ -15,6 +15,8 @@ interface HistoryItem {
   clone_username?: string
   profile_fake?: boolean
   spammer?: boolean
+  decision?: string
+  decision_label?: string
   trust_score: number
   risk_level?: string
   face_verified?: boolean
@@ -84,11 +86,18 @@ export default function Dashboard() {
     return Number.isNaN(date.getTime()) ? null : date
   }
 
+  const localDateKey = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const totalScans = historyItems.length
-  const todayKey = new Date().toISOString().slice(0, 10)
-  const reportsToday = historyItems.filter((item) => {
+  const todayKey = localDateKey(new Date())
+  const scansToday = historyItems.filter((item) => {
     const timestamp = parseTimestamp(item.timestamp || item.date)
-    return timestamp ? timestamp.toISOString().slice(0, 10) === todayKey : false
+    return timestamp ? localDateKey(timestamp) === todayKey : false
   }).length
   const avgTrust = totalScans ? Math.round(historyItems.reduce((sum, item) => sum + item.trust_score, 0) / totalScans) : 0
   const cloneRate = totalScans
@@ -96,7 +105,7 @@ export default function Dashboard() {
     : 0
 
   const normalizeStatus = (item: HistoryItem) => {
-    const status = item.risk_level || ''
+    const status = item.decision || item.decision_label || item.risk_level || ''
     if (status === 'Trusted' || status === 'Low' || status === 'Genuine') return 'Genuine'
     if (status === 'Suspicious') return 'Suspicious'
     if (status === 'Clone' || status === 'Likely Clone' || status === 'Clone Detected') return 'Clone Detected'
@@ -104,6 +113,8 @@ export default function Dashboard() {
     if (item.trust_score >= 50) return 'Suspicious'
     return 'Clone Detected'
   }
+
+  const confirmedThreats = historyItems.filter((item) => normalizeStatus(item) === 'Clone Detected').length
 
   const filteredHistoryItems = selectedStatusFilter === 'All'
     ? historyItems
@@ -136,7 +147,7 @@ export default function Dashboard() {
   const weeklyMap = historyItems.reduce<Record<string, { detections: number; scans: number; threats: number }>>((acc, item) => {
     const timestamp = parseTimestamp(item.timestamp || item.date)
     if (!timestamp) return acc
-    const key = timestamp.toISOString().slice(0, 10)
+    const key = localDateKey(timestamp)
     if (!acc[key]) acc[key] = { detections: 0, scans: 0, threats: 0 }
     acc[key].detections += 1
     acc[key].scans += 1
@@ -148,7 +159,7 @@ export default function Dashboard() {
 
   const weekNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const weeklyData = lastSevenDays.map((date) => {
-    const key = date.toISOString().slice(0, 10)
+    const key = localDateKey(date)
     return {
       day: weekNames[date.getDay()],
       detections: weeklyMap[key]?.detections ?? 0,
@@ -202,10 +213,10 @@ export default function Dashboard() {
   ]
 
   const cards = [
-    { label: 'Profiles Scanned', value: totalScans, icon: Eye, color: '#00F5FF', change: '+0.0%' },
-    { label: "Today's Reports", value: reportsToday, icon: FileText, color: '#7B61FF', change: '+0.0%' },
-    { label: 'Clone Detection Rate', value: cloneRate, suffix: '%', icon: Shield, color: '#00FFA3', change: '+0.0%' },
-    { label: 'Avg Trust Score', value: avgTrust, suffix: '/100', icon: Activity, color: '#FFD54F', change: '+0.0%' },
+    { label: 'Profiles Scanned', value: totalScans, icon: Eye, color: '#00F5FF' },
+    { label: 'Average Trust Score', value: avgTrust, suffix: '/100', icon: Activity, color: '#7B61FF' },
+    { label: "Today's Scans", value: scansToday, icon: FileText, color: '#00FFA3' },
+    { label: 'Clones Detected', value: confirmedThreats, icon: Shield, color: '#FFD54F' },
   ]
 
   const detectionAccuracy = totalScans ? Math.max(0, 100 - cloneRate) : 0
@@ -267,15 +278,6 @@ export default function Dashboard() {
               >
                 <card.icon size={18} color={card.color} />
               </div>
-              <span
-                className="text-xs font-mono px-2 py-1 rounded-lg"
-                style={{
-                  background: card.change.startsWith('+') ? 'rgba(0,255,163,0.1)' : 'rgba(255,61,113,0.1)',
-                  color: card.change.startsWith('+') ? '#00FFA3' : '#FF3D71',
-                }}
-              >
-                {card.change}
-              </span>
             </div>
             <div className="text-2xl font-bold counter mb-1" style={{ color: card.color }}>
               <AnimatedNumber value={card.value} />{card.suffix}
