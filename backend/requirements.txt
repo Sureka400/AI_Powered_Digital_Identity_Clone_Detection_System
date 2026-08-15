@@ -13,6 +13,7 @@ joblib
 opencv-python==4.10.0.84
 deepface
 tensorflow
+tf-keras
 pillow
 
 # Similarity / NLP
@@ -32,7 +33,7 @@ aiofiles
 # Validation
 pydantic
 
-# Google Gemini (if still used)
+# Google Gemini
 google-genai
 
 # Groq AI
