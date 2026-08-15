@@ -1,6 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from schemas.face_schema import FaceResponse
-from services.face_service import FaceService
 import shutil
 import os
 import uuid
@@ -10,7 +9,6 @@ router = APIRouter(
     tags=["Face Verification"]
 )
 
-# Always use an absolute path for the temp directory (relative to this file)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 
@@ -23,21 +21,33 @@ async def verify_face(
 
     os.makedirs(TEMP_DIR, exist_ok=True)
 
-    # Use unique filenames to avoid collisions and preserve extension
     ext1 = os.path.splitext(image1.filename or "img1.jpg")[1] or ".jpg"
     ext2 = os.path.splitext(image2.filename or "img2.jpg")[1] or ".jpg"
-    image1_path = os.path.join(TEMP_DIR, f"face1_{uuid.uuid4().hex}{ext1}")
-    image2_path = os.path.join(TEMP_DIR, f"face2_{uuid.uuid4().hex}{ext2}")
+
+    image1_path = os.path.join(
+        TEMP_DIR,
+        f"face1_{uuid.uuid4().hex}{ext1}"
+    )
+
+    image2_path = os.path.join(
+        TEMP_DIR,
+        f"face2_{uuid.uuid4().hex}{ext2}"
+    )
 
     try:
-        # Save uploaded files to disk
         with open(image1_path, "wb") as buffer:
             shutil.copyfileobj(image1.file, buffer)
+
         with open(image2_path, "wb") as buffer:
             shutil.copyfileobj(image2.file, buffer)
 
-        # Run DeepFace verification (VGG-Face model)
-        result = FaceService.verify(image1_path, image2_path)
+        # Load DeepFace/FaceService only when this endpoint is called.
+        from services.face_service import FaceService
+
+        result = FaceService.verify(
+            image1_path,
+            image2_path
+        )
 
         return FaceResponse(
             verified=result["verified"],
@@ -48,16 +58,15 @@ async def verify_face(
         )
 
     except Exception as e:
-        # Log the full error for debugging
         import traceback
         traceback.print_exc()
+
         raise HTTPException(
             status_code=500,
             detail=f"Face verification failed: {str(e)}"
         )
 
     finally:
-        # Always clean up temp files, even on failure
         for path in (image1_path, image2_path):
             try:
                 if os.path.exists(path):
