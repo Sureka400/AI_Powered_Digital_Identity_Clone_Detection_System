@@ -16,7 +16,7 @@ from routers.auth import router as auth_router
 app = FastAPI(
     title="AI Clone Detection API",
     description="AI Powered Digital Identity Clone Detection System",
-    version="1.0.0"
+    version="1.0.1"
 )
 
 app.add_middleware(
@@ -46,5 +46,5 @@ def home():
     return {
         "message": "AI Powered Digital Identity Clone Detection System API",
         "status": "Running",
-        "version": "1.0.0"
+        "version":"1.0.1"
     }
