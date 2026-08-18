@@ -13,5 +13,24 @@
         "bio_similarity": 28.43000030517578,
         "username_similarity": 36.36,
         "timestamp": "2026-08-07 09:26:11"
+    },
+    {
+        "id": "INV-20260817100647",
+        "date": "2026-08-17 10:06:47",
+        "analyst_email": "soniyav.aids2024@citchennai.net",
+        "original_username": "soni78",
+        "clone_username": "sonyy78",
+        "profile_fake": true,
+        "spammer": true,
+        "decision": "Clone",
+        "decision_label": "Clone",
+        "trust_score": 30,
+        "risk_level": "Clone Detected",
+        "status": "Clone Detected",
+        "face_verified": true,
+        "face_similarity": 73.0,
+        "bio_similarity": 32.05,
+        "username_similarity": 76.92,
+        "timestamp": "2026-08-17 10:06:47"
     }
 ]

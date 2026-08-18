@@ -24,3 +24,4 @@ SMTP_PORT=587
 
 Spaces copied from Gmail's grouped app-password display are removed
 automatically. Restart the backend after changing `.env`.
+frontend=  http://localhost:5173/
