@@ -29,7 +29,9 @@ pymongo[srv]
 # PDF reports
 reportlab
 aiofiles
-
+pillow
+google-genai
+sendgrid
 # Validation
 pydantic
 
